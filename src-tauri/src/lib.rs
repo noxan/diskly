@@ -19,7 +19,7 @@ async fn scan_directory(
 
     // Store scanner for cancellation
     {
-        let mut scanner_lock = state.scanner.lock().unwrap();
+        let mut scanner_lock = state.scanner.lock().expect("Scanner lock poisoned");
         *scanner_lock = Some(scanner.clone());
     }
 
@@ -35,7 +35,7 @@ async fn scan_directory(
 
 #[tauri::command]
 async fn cancel_scan(state: State<'_, AppState>) -> Result<(), String> {
-    let scanner_lock = state.scanner.lock().unwrap();
+    let scanner_lock = state.scanner.lock().expect("Scanner lock poisoned");
     if let Some(scanner) = scanner_lock.as_ref() {
         scanner.cancel();
     }

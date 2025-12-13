@@ -1,6 +1,6 @@
+use dashmap::{DashMap, DashSet};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -40,8 +40,8 @@ pub struct Scanner {
     app: AppHandle,
     cancelled: Arc<AtomicBool>,
     total_scanned: Arc<AtomicU64>,
-    inode_tracker: Arc<Mutex<HashMap<(u64, u64), PathBuf>>>,
-    visited_dirs: Arc<Mutex<HashSet<(u64, u64)>>>,
+    inode_tracker: Arc<DashMap<(u64, u64), PathBuf>>,
+    visited_dirs: Arc<DashSet<(u64, u64)>>,
     last_progress_emit: Arc<Mutex<Instant>>,
 }
 
@@ -53,8 +53,8 @@ impl Scanner {
             app,
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
-            inode_tracker: Arc::new(Mutex::new(HashMap::new())),
-            visited_dirs: Arc::new(Mutex::new(HashSet::new())),
+            inode_tracker: Arc::new(DashMap::new()),
+            visited_dirs: Arc::new(DashSet::new()),
             last_progress_emit: Arc::new(Mutex::new(Instant::now())),
         }
     }
@@ -77,8 +77,8 @@ impl Scanner {
         // Reset state
         self.cancelled.store(false, Ordering::SeqCst);
         self.total_scanned.store(0, Ordering::SeqCst);
-        self.inode_tracker.lock().unwrap().clear();
-        self.visited_dirs.lock().unwrap().clear();
+        self.inode_tracker.clear();
+        self.visited_dirs.clear();
 
         // Start scan
         match self.scan_recursive(&path_buf) {
@@ -151,8 +151,7 @@ impl Scanner {
             let ino = metadata.ino();
             let key = (dev, ino);
 
-            let mut visited = self.visited_dirs.lock().unwrap();
-            if !visited.insert(key) {
+            if !self.visited_dirs.insert(key) {
                 // Already visited this directory, skip to avoid cycle
                 return Ok(DirNode {
                     name: path
@@ -187,25 +186,16 @@ impl Scanner {
             }
         };
 
-        // Use 80% of CPU cores
-        let num_cores = num_cpus::get();
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads((num_cores * 4 / 5).max(1))
-            .build()
-            .map_err(|e| format!("Failed to create thread pool: {}", e))?;
-
-        // Scan children in parallel
-        let children: Vec<DirNode> = thread_pool.install(|| {
-            entries
-                .par_iter()
-                .filter_map(|entry| {
-                    if self.cancelled.load(Ordering::SeqCst) {
-                        return None;
-                    }
-                    self.scan_recursive(entry).ok()
-                })
-                .collect()
-        });
+        // Scan children in parallel using global rayon pool
+        let children: Vec<DirNode> = entries
+            .par_iter()
+            .filter_map(|entry| {
+                if self.cancelled.load(Ordering::SeqCst) {
+                    return None;
+                }
+                self.scan_recursive(entry).ok()
+            })
+            .collect();
 
         // Calculate total size
         let total_size: u64 = children.iter().map(|c| c.size).sum();
@@ -224,7 +214,10 @@ impl Scanner {
 
         // Emit directory complete event (throttled)
         let should_emit = {
-            let mut last_emit = self.last_progress_emit.lock().unwrap();
+            let mut last_emit = self
+                .last_progress_emit
+                .lock()
+                .expect("Progress emit lock poisoned");
             if last_emit.elapsed() >= Duration::from_millis(Self::PROGRESS_THROTTLE_MS) {
                 *last_emit = Instant::now();
                 true
@@ -258,14 +251,13 @@ impl Scanner {
 
         // Handle hard links - count only once
         if nlink > 1 {
-            let mut tracker = self.inode_tracker.lock().unwrap();
             let key = (dev, ino);
 
-            if let Some(_existing_path) = tracker.get(&key) {
+            if self.inode_tracker.contains_key(&key) {
                 return 0; // Already counted this inode at a different path
             }
 
-            tracker.insert(key, path.to_path_buf());
+            self.inode_tracker.insert(key, path.to_path_buf());
             return metadata.len();
         }
 
