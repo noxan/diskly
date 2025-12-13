@@ -176,22 +176,21 @@ impl Scanner {
     fn get_file_size(&self, path: &Path, metadata: &fs::Metadata) -> u64 {
         use std::os::unix::fs::MetadataExt;
 
-        let dev = metadata.dev();
-        let ino = metadata.ino();
         let nlink = metadata.nlink();
-
-        // Handle hard links - count only once
-        if nlink > 1 {
-            let key = (dev, ino);
-
-            if self.inode_tracker.contains_key(&key) {
-                return 0; // Already counted this inode at a different path
-            }
-
-            self.inode_tracker.insert(key, path.to_path_buf());
+        
+        // Simple case: no hard links
+        if nlink <= 1 {
             return metadata.len();
         }
 
+        // Handle hard links - count only once
+        let key = (metadata.dev(), metadata.ino());
+        
+        if self.inode_tracker.contains_key(&key) {
+            return 0; // Already counted this inode at a different path
+        }
+
+        self.inode_tracker.insert(key, path.to_path_buf());
         metadata.len()
     }
 
