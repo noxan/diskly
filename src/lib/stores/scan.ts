@@ -2,43 +2,40 @@ import { writable } from "svelte/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 
-export interface DirNode {
-  name: string;
+export interface FileNode {
   path: string;
+  name: string;
   size: number;
-  children: DirNode[];
-  is_file: boolean;
-  updatedAt?: number;
-  seq?: number;
+  is_dir: boolean;
+  child_count: number;
+  children?: FileNode[];
 }
 
 interface ScanState {
   scanning: boolean;
-  data: DirNode | null;
+  rootPath: string | null;
   totalScanned: number;
+  totalSize: number;
   currentPath: string;
   error: string | null;
 }
 
 type ScanProgressEvent = {
-  path: string;
-  node_data: DirNode;
+  current_path: string;
   total_scanned: number;
 };
 
 type ScanCompleteEvent = {
-  root: DirNode;
+  root_path: string;
   total_scanned: number;
-};
-
-type ScanErrorEvent = {
-  message: string;
+  total_size: number;
 };
 
 const initial: ScanState = {
   scanning: false,
-  data: null,
+  rootPath: null,
   totalScanned: 0,
+  totalSize: 0,
   currentPath: "",
   error: null,
 };
@@ -52,65 +49,29 @@ function createScanStore() {
   const updateIfScanning = (updater: (state: ScanState) => ScanState) =>
     update((s) => (s.scanning ? updater(s) : s));
 
-  const shouldUseNewNode = (existing: DirNode | null, incoming: DirNode): boolean => {
-    if (!existing) return true;
-    if ((incoming.updatedAt ?? 0) > (existing.updatedAt ?? 0)) return true;
-    if ((incoming.seq ?? 0) > (existing.seq ?? 0)) return true;
-    return false;
-  };
-
   const handleProgress = (event: { payload: ScanProgressEvent }) =>
     updateIfScanning((s) => ({
       ...s,
-      currentPath: event.payload.path,
+      currentPath: event.payload.current_path,
       totalScanned: event.payload.total_scanned,
-      data: shouldUseNewNode(s.data, event.payload.node_data) ? event.payload.node_data : s.data,
     }));
 
   const handleComplete = (event: { payload: ScanCompleteEvent }) =>
     updateIfScanning((s) => ({
       ...s,
       scanning: false,
-      data: event.payload.root,
+      rootPath: event.payload.root_path,
       totalScanned: event.payload.total_scanned,
-      currentPath: "",
-    }));
-
-  const handleError = (event: { payload: ScanErrorEvent }) =>
-    updateIfScanning((s) => ({
-      ...s,
-      scanning: false,
-      error: event.payload.message,
+      totalSize: event.payload.total_size,
       currentPath: "",
     }));
 
   const setupListeners = async () => {
     await cleanup();
     listeners = [
-      await listen("scan:directory_complete", handleProgress),
+      await listen("scan:progress", handleProgress),
       await listen("scan:complete", handleComplete),
-      await listen("scan:error", handleError),
     ];
-  };
-
-  const removeNode = (root: DirNode | null, pathToRemove: string): DirNode | null => {
-    if (!root) return null;
-    if (root.path === pathToRemove) return null;
-
-    if (!root.is_file && root.children) {
-      const updatedChildren = root.children
-        .map((child) => removeNode(child, pathToRemove))
-        .filter((child): child is DirNode => child !== null);
-
-      const removedSize = root.children.length - updatedChildren.length;
-      if (removedSize > 0) {
-        const newSize = updatedChildren.reduce((sum, child) => sum + child.size, 0);
-        return { ...root, children: updatedChildren, size: newSize };
-      }
-      return { ...root, children: updatedChildren };
-    }
-
-    return root;
   };
 
   return {
@@ -132,11 +93,12 @@ function createScanStore() {
       }
       set(initial);
     },
-    removeNode(path: string) {
-      update((s) => ({ ...s, data: removeNode(s.data, path) }));
-    },
     reset: () => set(initial),
   };
 }
 
 export const scanStore = createScanStore();
+
+export async function getChildren(path: string): Promise<FileNode[]> {
+  return await invoke<FileNode[]>("get_children", { path });
+}

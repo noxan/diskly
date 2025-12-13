@@ -6,7 +6,7 @@
 
   let store = $derived($scanStore);
   let scanning = $derived(store.scanning);
-  let data = $derived(store.data);
+  let rootPath = $derived(store.rootPath);
   let error = $derived(store.error);
 </script>
 
@@ -35,7 +35,7 @@
         Back
       </button>
     </div>
-  {:else if data}
+  {:else if rootPath}
     <TreeView />
   {:else}
     <div class="min-h-screen flex items-center justify-center">

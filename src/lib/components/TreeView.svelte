@@ -1,10 +1,33 @@
 <script lang="ts">
   import TreeNode from "./TreeNode.svelte";
-  import { scanStore, type DirNode } from "../stores/scan";
+  import { scanStore, getChildren, type FileNode } from "../stores/scan";
 
   let store = $derived($scanStore);
-  let data = $derived(store.data);
+  let rootPath = $derived(store.rootPath);
   let scanning = $derived(store.scanning);
+  let totalSize = $derived(store.totalSize);
+  let totalScanned = $derived(store.totalScanned);
+
+  let rootChildren = $state<FileNode[]>([]);
+  let loading = $state(false);
+
+  $effect(() => {
+    if (rootPath && !scanning) {
+      loadRootChildren();
+    }
+  });
+
+  async function loadRootChildren() {
+    if (!rootPath) return;
+    loading = true;
+    try {
+      rootChildren = await getChildren(rootPath);
+    } catch (err) {
+      console.error("Failed to load root children:", err);
+    } finally {
+      loading = false;
+    }
+  }
 
   function formatSize(bytes: number): string {
     if (bytes === 0) return "0 B";
@@ -14,31 +37,26 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  function countItems(node: DirNode): number {
-    if (node.is_file) return 1;
-    let count = 1;
-    if (node.children) {
-      for (const child of node.children) {
-        count += countItems(child);
-      }
-    }
-    return count;
+  function getRootName(path: string): string {
+    const parts = path.split(/[/\\]/);
+    return parts[parts.length - 1] || path;
   }
 
   function newScan(): void {
     scanStore.reset();
+    rootChildren = [];
   }
 </script>
 
-{#if data && !scanning}
+{#if rootPath && !scanning && !loading}
   <div class="max-w-4xl mx-auto p-6">
     <div class="mb-6">
       <div class="flex items-baseline justify-between mb-2">
         <h2
           class="text-2xl font-light text-gray-800 dark:text-gray-100 truncate"
-          title={data.path}
+          title={rootPath}
         >
-          {data.name}
+          {getRootName(rootPath)}
         </h2>
         <button
           onclick={newScan}
@@ -50,14 +68,14 @@
 
       <div
         class="text-sm text-gray-500 dark:text-gray-400 mb-1 truncate"
-        title={data.path}
+        title={rootPath}
       >
-        {data.path}
+        {rootPath}
       </div>
 
       <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
-        <span>Total Size: <strong>{formatSize(data.size)}</strong></span>
-        <span>Items: <strong>{countItems(data).toLocaleString()}</strong></span>
+        <span>Total Size: <strong>{formatSize(totalSize)}</strong></span>
+        <span>Items: <strong>{totalScanned.toLocaleString()}</strong></span>
       </div>
     </div>
 
@@ -65,10 +83,10 @@
       class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
     >
       <div class="max-h-[70vh] overflow-y-auto">
-        {#if data.children && data.children.length > 0}
+        {#if rootChildren.length > 0}
           <div class="p-2">
-            {#each data.children.sort((a, b) => b.size - a.size) as child (child.path)}
-              <TreeNode node={child} maxSize={data.size} />
+            {#each rootChildren as child (child.path)}
+              <TreeNode node={child} maxSize={totalSize} />
             {/each}
           </div>
         {:else}

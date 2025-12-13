@@ -1,32 +1,33 @@
 pub mod file_ops;
 pub mod scanner;
 
-use scanner::Scanner;
-use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State};
-
-struct AppState {
-    scanner: Arc<Mutex<Option<Scanner>>>,
-}
+use scanner::{scan_folder, FileNode, ScanComplete, ScanState};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]
-async fn scan_directory(
-    path: String,
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
-    let scanner = Scanner::new(app.clone());
-
-    // Store scanner for cancellation
-    {
-        let mut scanner_lock = state.scanner.lock().expect("Scanner lock poisoned");
-        *scanner_lock = Some(scanner.clone());
-    }
-
+async fn scan_directory(path: String, app: AppHandle, state: State<'_, ScanState>) -> Result<(), String> {
+    state.reset();
+    
+    let state_data = state.data.clone();
+    let cancelled = state.cancelled.clone();
+    let app_clone = app.clone();
+    
     // Run scan in background on blocking thread pool
     tokio::task::spawn_blocking(move || {
-        if let Err(e) = scanner.scan_directory(path.clone()) {
-            eprintln!("Scan error: {}", e);
+        match scan_folder(path.clone(), state_data, cancelled, app_clone.clone()) {
+            Ok((total_scanned, total_size)) => {
+                let _ = app_clone.emit(
+                    "scan:complete",
+                    ScanComplete {
+                        root_path: path,
+                        total_scanned,
+                        total_size,
+                    },
+                );
+            }
+            Err(e) => {
+                eprintln!("Scan error: {}", e);
+            }
         }
     });
 
@@ -34,12 +35,15 @@ async fn scan_directory(
 }
 
 #[tauri::command]
-async fn cancel_scan(state: State<'_, AppState>) -> Result<(), String> {
-    let scanner_lock = state.scanner.lock().expect("Scanner lock poisoned");
-    if let Some(scanner) = scanner_lock.as_ref() {
-        scanner.cancel();
-    }
+async fn cancel_scan(state: State<'_, ScanState>) -> Result<(), String> {
+    state.cancel();
     Ok(())
+}
+
+#[tauri::command]
+async fn get_children(path: String, state: State<'_, ScanState>) -> Result<Vec<FileNode>, String> {
+    let data = state.data.lock().unwrap();
+    Ok(data.get(&path).cloned().unwrap_or_default())
 }
 
 #[tauri::command]
@@ -64,15 +68,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let state = AppState {
-                scanner: Arc::new(Mutex::new(None)),
-            };
-            app.manage(state);
+            let scan_state = ScanState::new();
+            app.manage(scan_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             scan_directory,
             cancel_scan,
+            get_children,
             get_home_dir,
             pick_directory,
             file_ops::file_preview,

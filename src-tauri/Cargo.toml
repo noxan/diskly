@@ -24,15 +24,15 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-rayon = "1"
 dirs = "5"
 trash = "5"
-dashmap = "6"
+walkdir = "2"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3"
 
-[[bench]]
-name = "scanner_bench"
-harness = false
+# [[bench]]
+# name = "scanner_bench"
+# harness = false
+# Note: Benchmark needs updating for new lazy-loading architecture
