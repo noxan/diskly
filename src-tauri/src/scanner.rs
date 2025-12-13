@@ -258,6 +258,44 @@ impl Scanner {
         }
     }
 
+    pub fn scan_directory_with_result(&self, path: String) -> Result<(DirNode, u64), String> {
+        let path_buf = PathBuf::from(&path);
+
+        if !path_buf.exists() {
+            return Err("Path does not exist".to_string());
+        }
+
+        if !path_buf.is_dir() {
+            return Err("Path is not a directory".to_string());
+        }
+
+        // Reset state
+        self.cancelled.store(false, Ordering::SeqCst);
+        self.total_scanned.store(0, Ordering::SeqCst);
+        self.inode_tracker.lock().unwrap().clear();
+
+        // Start scan
+        match self.scan_recursive(&path_buf) {
+            Ok(root) => {
+                let total = self.total_scanned.load(Ordering::SeqCst);
+                let _ = self.app.emit(
+                    "scan:complete",
+                    ScanComplete {
+                        root: root.clone(),
+                        total_scanned: total,
+                    },
+                );
+                Ok((root, total))
+            }
+            Err(e) => {
+                let _ = self
+                    .app
+                    .emit("scan:error", ScanError { message: e.clone() });
+                Err(e)
+            }
+        }
+    }
+
     fn scan_recursive(&self, path: &Path) -> Result<DirNode, String> {
         if self.cancelled.load(Ordering::SeqCst) {
             return Err("Scan cancelled".to_string());

@@ -1,11 +1,14 @@
+pub mod cache;
 pub mod scanner;
 
+use cache::LruCache;
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 struct AppState {
     scanner: Arc<Mutex<Option<Scanner>>>,
+    cache: Arc<Mutex<LruCache>>,
 }
 
 #[tauri::command]
@@ -14,6 +17,31 @@ async fn scan_directory(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    // Check cache first
+    {
+        let mut cache = state.cache.lock().unwrap();
+        if let Some((data, total_scanned)) = cache.get(&path) {
+            // Emit cached result immediately
+            use scanner::{ScanComplete, ScanProgress};
+            let _ = app.emit(
+                "scan:directory_complete",
+                ScanProgress {
+                    path: path.clone(),
+                    node_data: data.clone(),
+                    total_scanned,
+                },
+            );
+            let _ = app.emit(
+                "scan:complete",
+                ScanComplete {
+                    root: data,
+                    total_scanned,
+                },
+            );
+            return Ok(());
+        }
+    }
+
     let scanner = Scanner::new(app.clone());
 
     // Store scanner for cancellation
@@ -22,9 +50,16 @@ async fn scan_directory(
         *scanner_lock = Some(Scanner::new(app.clone()));
     }
 
+    let cache = state.cache.clone();
+    let scan_path = path.clone();
+
     // Run scan in background on blocking thread pool
     tokio::task::spawn_blocking(move || {
-        if let Err(e) = scanner.scan_directory(path.clone()) {
+        if let Ok((data, total_scanned)) = scanner.scan_directory_with_result(scan_path.clone()) {
+            // Cache the result
+            let mut cache_lock = cache.lock().unwrap();
+            cache_lock.put(scan_path, data, total_scanned);
+        } else if let Err(e) = scanner.scan_directory(scan_path) {
             eprintln!("Scan error: {}", e);
         }
     });
@@ -57,6 +92,13 @@ async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
     Ok(result.map(|p| p.to_string()))
 }
 
+#[tauri::command]
+async fn clear_cache(state: State<'_, AppState>) -> Result<(), String> {
+    let mut cache = state.cache.lock().unwrap();
+    cache.clear();
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -65,6 +107,7 @@ pub fn run() {
         .setup(|app| {
             let state = AppState {
                 scanner: Arc::new(Mutex::new(None)),
+                cache: Arc::new(Mutex::new(LruCache::new())),
             };
             app.manage(state);
             Ok(())
@@ -74,6 +117,7 @@ pub fn run() {
             cancel_scan,
             get_home_dir,
             pick_directory,
+            clear_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

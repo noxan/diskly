@@ -1,14 +1,14 @@
 <script>
-  import { invoke } from '@tauri-apps/api/core';
-  import { scanStore } from '../stores/scan.js';
+  import { invoke } from "@tauri-apps/api/core";
+  import { scanStore } from "../stores/scan.js";
 
-  let homeDir = '';
+  let homeDir = "";
 
   async function loadHomeDir() {
     try {
-      homeDir = await invoke('get_home_dir');
+      homeDir = await invoke("get_home_dir");
     } catch (err) {
-      console.error('Failed to get home dir:', err);
+      console.error("Failed to get home dir:", err);
     }
   }
 
@@ -22,12 +22,20 @@
 
   async function pickAndScan() {
     try {
-      const path = await invoke('pick_directory');
+      const path = await invoke("pick_directory");
       if (path) {
         await scanStore.startScan(path);
       }
     } catch (err) {
-      console.error('Failed to pick directory:', err);
+      console.error("Failed to pick directory:", err);
+    }
+  }
+
+  async function clearCache() {
+    try {
+      await invoke("clear_cache");
+    } catch (err) {
+      console.error("Failed to clear cache:", err);
     }
   }
 </script>
@@ -35,7 +43,7 @@
 <div class="flex flex-col items-center justify-center gap-4 p-8">
   <h1 class="text-4xl font-light text-gray-800 mb-2">Diskly</h1>
   <p class="text-gray-600 mb-4">Analyze disk space usage</p>
-  
+
   <div class="flex gap-3">
     <button
       onclick={scanHome}
@@ -43,12 +51,20 @@
     >
       Scan Home Folder
     </button>
-    
+
     <button
       onclick={pickAndScan}
       class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-medium transition-colors"
     >
       Choose Directory
+    </button>
+
+    <button
+      onclick={clearCache}
+      class="px-6 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg font-medium transition-colors border border-gray-300"
+      title="Clear scan cache"
+    >
+      Clear Cache
     </button>
   </div>
 </div>
