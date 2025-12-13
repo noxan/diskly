@@ -177,7 +177,7 @@ impl Scanner {
         use std::os::unix::fs::MetadataExt;
 
         let nlink = metadata.nlink();
-        
+
         // Simple case: no hard links
         if nlink <= 1 {
             return metadata.len();
@@ -185,7 +185,7 @@ impl Scanner {
 
         // Handle hard links - count only once
         let key = (metadata.dev(), metadata.ino());
-        
+
         if self.inode_tracker.contains_key(&key) {
             return 0; // Already counted this inode at a different path
         }
