@@ -34,6 +34,7 @@ pub struct ScanError {
     pub message: String,
 }
 
+#[derive(Clone)]
 pub struct Scanner {
     app: AppHandle,
     cancelled: Arc<AtomicBool>,
