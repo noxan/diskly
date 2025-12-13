@@ -1,36 +1,10 @@
-# Dependencies
-node_modules
-.pnp
-.pnp.js
-
-# Build outputs
-build/
-dist/
-.svelte-kit/
-
-# Tauri
-src-tauri/target/
-src-tauri/WixTools/
-
-# Environment
-.env
-.env.local
-.env.production.local
-.env.development.local
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
 .DS_Store
-Thumbs.db
+node_modules
+/build
+/.svelte-kit
+/package
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
