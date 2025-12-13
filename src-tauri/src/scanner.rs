@@ -1,10 +1,11 @@
+use dashmap::DashMap;
 use rayon::prelude::*;
+use rayon::ThreadPool;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -204,16 +205,25 @@ pub struct Scanner {
     app: AppHandle,
     cancelled: Arc<AtomicBool>,
     total_scanned: Arc<AtomicU64>,
-    inode_tracker: Arc<Mutex<HashMap<(u64, u64), PathBuf>>>,
+    inode_tracker: Arc<DashMap<(u64, u64), PathBuf>>,
+    thread_pool: ThreadPool,
 }
 
 impl Scanner {
     pub fn new(app: AppHandle) -> Self {
+        // Use 80% of CPU cores
+        let num_cores = num_cpus::get();
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads((num_cores * 4 / 5).max(1))
+            .build()
+            .expect("Failed to create thread pool");
+
         Self {
             app,
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
-            inode_tracker: Arc::new(Mutex::new(HashMap::new())),
+            inode_tracker: Arc::new(DashMap::new()),
+            thread_pool,
         }
     }
 
@@ -235,7 +245,7 @@ impl Scanner {
         // Reset state
         self.cancelled.store(false, Ordering::SeqCst);
         self.total_scanned.store(0, Ordering::SeqCst);
-        self.inode_tracker.lock().unwrap().clear();
+        self.inode_tracker.clear();
 
         // Start scan
         match self.scan_recursive(&path_buf) {
@@ -319,15 +329,8 @@ impl Scanner {
             }
         };
 
-        // Use 80% of CPU cores
-        let num_cores = num_cpus::get();
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads((num_cores * 4 / 5).max(1))
-            .build()
-            .map_err(|e| format!("Failed to create thread pool: {}", e))?;
-
-        // Scan children in parallel
-        let children: Vec<DirNode> = thread_pool.install(|| {
+        // Scan children in parallel using thread pool
+        let children: Vec<DirNode> = self.thread_pool.install(|| {
             entries
                 .par_iter()
                 .filter_map(|entry| {
@@ -378,14 +381,13 @@ impl Scanner {
 
         // Handle hard links - count only once
         if nlink > 1 {
-            let mut tracker = self.inode_tracker.lock().unwrap();
             let key = (dev, ino);
 
-            if let Some(_existing_path) = tracker.get(&key) {
+            if self.inode_tracker.contains_key(&key) {
                 return 0; // Already counted this inode at a different path
             }
 
-            tracker.insert(key, path.to_path_buf());
+            self.inode_tracker.insert(key, path.to_path_buf());
             return metadata.len();
         }
 
