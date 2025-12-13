@@ -258,10 +258,11 @@ impl Scanner {
             }
 
             self.inode_tracker.insert(key, path.to_path_buf());
-            return metadata.len();
         }
 
-        metadata.len()
+        // Use actual disk usage (blocks * 512) for sparse files
+        // blocks() returns 512-byte blocks, not filesystem blocks
+        metadata.blocks() * 512
     }
 
     #[cfg(not(unix))]
