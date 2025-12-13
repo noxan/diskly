@@ -1,4 +1,4 @@
-mod scanner;
+pub mod scanner;
 
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
