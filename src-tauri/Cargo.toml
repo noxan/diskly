@@ -28,6 +28,7 @@ rayon = "1"
 walkdir = "2"
 dirs = "5"
 dashmap = "6"
+trash = "5"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
