@@ -3,6 +3,15 @@
   import type { DirNode } from "../stores/scan";
   import { scanStore } from "../stores/scan";
   import { invoke } from "@tauri-apps/api/core";
+  import {
+    ChevronRight,
+    ChevronDown,
+    File,
+    Folder,
+    Eye,
+    FolderOpen,
+    Trash2,
+  } from "lucide-svelte";
 
   interface Props {
     node: DirNode;
@@ -70,7 +79,7 @@
 
 <div class="tree-node">
   <div
-    class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md transition-colors"
+    class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md transition-colors min-h-[2.5rem]"
     onmouseenter={() => (showActions = true)}
     onmouseleave={() => (showActions = false)}
     role="button"
@@ -80,14 +89,22 @@
   >
     {#if !node.is_file}
       <span class="text-gray-400 dark:text-gray-500 w-4 flex-shrink-0">
-        {expanded ? "▼" : "▶"}
+        {#if expanded}
+          <ChevronDown size={16} />
+        {:else}
+          <ChevronRight size={16} />
+        {/if}
       </span>
     {:else}
       <span class="w-4 flex-shrink-0"></span>
     {/if}
 
-    <span class="text-lg mr-2">
-      {node.is_file ? "📄" : "📁"}
+    <span class="mr-2 text-gray-600 dark:text-gray-400">
+      {#if node.is_file}
+        <File size={16} />
+      {:else}
+        <Folder size={16} />
+      {/if}
     </span>
 
     <span
@@ -98,31 +115,31 @@
       {node.name}
     </span>
 
-    {#if showActions}
-      <div class="flex gap-1 mr-2">
+    <div class="flex gap-1 mr-2 h-6">
+      {#if showActions}
         <button
           onclick={handlePreview}
-          class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+          class="p-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
           title="Preview"
         >
-          👁
+          <Eye size={14} />
         </button>
         <button
           onclick={handleOpenInFinder}
-          class="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+          class="p-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
           title="Open in Finder"
         >
-          📂
+          <FolderOpen size={14} />
         </button>
         <button
           onclick={handleDelete}
-          class="px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+          class="p-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
           title="Move to Trash"
         >
-          🗑️
+          <Trash2 size={14} />
         </button>
-      </div>
-    {/if}
+      {/if}
+    </div>
 
     <span class="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
       {formatSize(node.size)}
