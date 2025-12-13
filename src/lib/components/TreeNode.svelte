@@ -1,11 +1,17 @@
-<script>
+<script lang="ts">
   import TreeNode from "./TreeNode.svelte";
+  import type { DirNode } from "../stores/scan";
 
-  let { node, maxSize } = $props();
+  interface Props {
+    node: DirNode;
+    maxSize: number;
+  }
+
+  let { node, maxSize }: Props = $props();
 
   let expanded = $state(false);
 
-  function formatSize(bytes) {
+  function formatSize(bytes: number): string {
     if (bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB", "TB"];
@@ -13,15 +19,15 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  function getPercentage(size, max) {
+  function getPercentage(size: number, max: number): number {
     return max > 0 ? (size / max) * 100 : 0;
   }
 
-  function sortedChildren(children) {
+  function sortedChildren(children: DirNode[]): DirNode[] {
     return [...children].sort((a, b) => b.size - a.size);
   }
 
-  function toggleExpand() {
+  function toggleExpand(): void {
     if (!node.is_file) {
       expanded = !expanded;
     }

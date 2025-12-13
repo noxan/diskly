@@ -1,29 +1,69 @@
-import { writable, derived } from 'svelte/store';
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+import { writable, type Writable } from "svelte/store";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
-function createScanStore() {
-  const { subscribe, set, update } = writable({
+export interface DirNode {
+  name: string;
+  path: string;
+  size: number;
+  children: DirNode[];
+  is_file: boolean;
+  updatedAt?: number;
+  seq?: number;
+}
+
+interface ScanState {
+  scanning: boolean;
+  data: DirNode | null;
+  totalScanned: number;
+  currentPath: string;
+  error: string | null;
+}
+
+interface ScanProgress {
+  path: string;
+  node_data: DirNode;
+  total_scanned: number;
+}
+
+interface ScanComplete {
+  root: DirNode;
+  total_scanned: number;
+}
+
+interface ScanError {
+  message: string;
+}
+
+interface ScanStore {
+  subscribe: Writable<ScanState>["subscribe"];
+  startScan: (path: string) => Promise<void>;
+  cancelScan: () => Promise<void>;
+  reset: () => void;
+}
+
+function createScanStore(): ScanStore {
+  const { subscribe, set, update } = writable<ScanState>({
     scanning: false,
     data: null,
     totalScanned: 0,
-    currentPath: '',
+    currentPath: "",
     error: null,
   });
 
-  let unlistenProgress = null;
-  let unlistenComplete = null;
-  let unlistenError = null;
+  let unlistenProgress: UnlistenFn | null = null;
+  let unlistenComplete: UnlistenFn | null = null;
+  let unlistenError: UnlistenFn | null = null;
 
-  const setupListeners = async () => {
+  const setupListeners = async (): Promise<void> => {
     // Clean up existing listeners
     if (unlistenProgress) await unlistenProgress();
     if (unlistenComplete) await unlistenComplete();
     if (unlistenError) await unlistenError();
 
     // Listen for directory complete events
-    unlistenProgress = await listen('scan:directory_complete', (event) => {
-      update(state => {
+    unlistenProgress = await listen<ScanProgress>("scan:directory_complete", (event) => {
+      update((state) => {
         if (!state.scanning) return state; // Ignore if not scanning
         return {
           ...state,
@@ -36,35 +76,35 @@ function createScanStore() {
     });
 
     // Listen for scan complete
-    unlistenComplete = await listen('scan:complete', (event) => {
-      update(state => {
+    unlistenComplete = await listen<ScanComplete>("scan:complete", (event) => {
+      update((state) => {
         if (!state.scanning) return state; // Ignore if not scanning
         return {
           ...state,
           scanning: false,
           data: event.payload.root,
           totalScanned: event.payload.total_scanned,
-          currentPath: '',
+          currentPath: "",
         };
       });
     });
 
     // Listen for errors
-    unlistenError = await listen('scan:error', (event) => {
-      update(state => {
+    unlistenError = await listen<ScanError>("scan:error", (event) => {
+      update((state) => {
         if (!state.scanning) return state; // Ignore if not scanning
         return {
           ...state,
           scanning: false,
           error: event.payload.message,
-          currentPath: '',
+          currentPath: "",
         };
       });
     });
   };
 
   // Merge node data into existing tree (for progressive updates)
-  const mergeNodeData = (existingData, newNode) => {
+  const mergeNodeData = (existingData: DirNode | null, newNode: DirNode): DirNode => {
     if (!existingData) {
       return newNode;
     }
@@ -83,7 +123,7 @@ function createScanStore() {
 
   return {
     subscribe,
-    startScan: async (path) => {
+    startScan: async (path: string): Promise<void> => {
       set({
         scanning: true,
         data: null,
@@ -95,35 +135,35 @@ function createScanStore() {
       await setupListeners();
 
       try {
-        await invoke('scan_directory', { path });
+        await invoke("scan_directory", { path });
       } catch (err) {
-        update(state => ({
+        update((state) => ({
           ...state,
           scanning: false,
-          error: err.toString(),
+          error: err instanceof Error ? err.message : String(err),
         }));
       }
     },
-    cancelScan: async () => {
+    cancelScan: async (): Promise<void> => {
       try {
-        await invoke('cancel_scan');
+        await invoke("cancel_scan");
         set({
           scanning: false,
           data: null,
           totalScanned: 0,
-          currentPath: '',
+          currentPath: "",
           error: null,
         });
       } catch (err) {
-        console.error('Failed to cancel scan:', err);
+        console.error("Failed to cancel scan:", err);
       }
     },
-    reset: () => {
+    reset: (): void => {
       set({
         scanning: false,
         data: null,
         totalScanned: 0,
-        currentPath: '',
+        currentPath: "",
         error: null,
       });
     },

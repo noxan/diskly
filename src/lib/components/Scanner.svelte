@@ -1,12 +1,12 @@
-<script>
+<script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { scanStore } from "../stores/scan.js";
+  import { scanStore } from "../stores/scan";
 
-  let homeDir = "";
+  let homeDir: string = "";
 
-  async function loadHomeDir() {
+  async function loadHomeDir(): Promise<void> {
     try {
-      homeDir = await invoke("get_home_dir");
+      homeDir = (await invoke<string>("get_home_dir")) || "";
     } catch (err) {
       console.error("Failed to get home dir:", err);
     }
@@ -14,15 +14,15 @@
 
   loadHomeDir();
 
-  async function scanHome() {
+  async function scanHome(): Promise<void> {
     if (homeDir) {
       await scanStore.startScan(homeDir);
     }
   }
 
-  async function pickAndScan() {
+  async function pickAndScan(): Promise<void> {
     try {
-      const path = await invoke("pick_directory");
+      const path = await invoke<string>("pick_directory");
       if (path) {
         await scanStore.startScan(path);
       }

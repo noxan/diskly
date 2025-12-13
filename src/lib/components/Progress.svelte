@@ -1,5 +1,5 @@
-<script>
-  import { scanStore } from "../stores/scan.js";
+<script lang="ts">
+  import { scanStore } from "../stores/scan";
 
   let store = $derived($scanStore);
   let currentPath = $derived(store.currentPath);

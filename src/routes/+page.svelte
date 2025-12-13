@@ -1,8 +1,8 @@
-<script>
+<script lang="ts">
   import Scanner from "$lib/components/Scanner.svelte";
   import Progress from "$lib/components/Progress.svelte";
   import TreeView from "$lib/components/TreeView.svelte";
-  import { scanStore } from "$lib/stores/scan.js";
+  import { scanStore } from "$lib/stores/scan";
 
   let store = $derived($scanStore);
   let scanning = $derived(store.scanning);

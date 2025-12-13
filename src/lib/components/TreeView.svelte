@@ -1,12 +1,12 @@
-<script>
+<script lang="ts">
   import TreeNode from "./TreeNode.svelte";
-  import { scanStore } from "../stores/scan.js";
+  import { scanStore, type DirNode } from "../stores/scan";
 
   let store = $derived($scanStore);
   let data = $derived(store.data);
   let scanning = $derived(store.scanning);
 
-  function formatSize(bytes) {
+  function formatSize(bytes: number): string {
     if (bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB", "TB"];
@@ -14,7 +14,7 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  function countItems(node) {
+  function countItems(node: DirNode): number {
     if (node.is_file) return 1;
     let count = 1;
     if (node.children) {
@@ -25,7 +25,7 @@
     return count;
   }
 
-  function newScan() {
+  function newScan(): void {
     scanStore.reset();
   }
 </script>
