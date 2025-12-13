@@ -5,6 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,15 +41,20 @@ pub struct Scanner {
     cancelled: Arc<AtomicBool>,
     total_scanned: Arc<AtomicU64>,
     inode_tracker: Arc<Mutex<HashMap<(u64, u64), PathBuf>>>,
+    visited_dirs: Arc<Mutex<HashSet<(u64, u64)>>>,
+    last_progress_emit: Arc<Mutex<Instant>>,
 }
 
 impl Scanner {
+    const PROGRESS_THROTTLE_MS: u64 = 50;
+
     pub fn new(app: AppHandle) -> Self {
         Self {
             app,
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
             inode_tracker: Arc::new(Mutex::new(HashMap::new())),
+            last_progress_emit: Arc::new(Mutex::new(Instant::now())),
         }
     }
 
@@ -189,16 +195,28 @@ impl Scanner {
             is_file: false,
         };
 
-        // Emit directory complete event
-        let total = self.total_scanned.load(Ordering::SeqCst);
-        let _ = self.app.emit(
-            "scan:directory_complete",
-            ScanProgress {
-                path: path.to_string_lossy().to_string(),
-                node_data: node.clone(),
-                total_scanned: total,
-            },
-        );
+        // Emit directory complete event (throttled)
+        let should_emit = {
+            let mut last_emit = self.last_progress_emit.lock().unwrap();
+            if last_emit.elapsed() >= Duration::from_millis(Self::PROGRESS_THROTTLE_MS) {
+                *last_emit = Instant::now();
+                true
+            } else {
+                false
+            }
+        };
+
+        if should_emit {
+            let total = self.total_scanned.load(Ordering::SeqCst);
+            let _ = self.app.emit(
+                "scan:directory_complete",
+                ScanProgress {
+                    path: path.to_string_lossy().to_string(),
+                    node_data: node.clone(),
+                    total_scanned: total,
+                },
+            );
+        }
 
         Ok(node)
     }
