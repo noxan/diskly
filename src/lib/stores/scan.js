@@ -23,34 +23,43 @@ function createScanStore() {
 
     // Listen for directory complete events
     unlistenProgress = await listen('scan:directory_complete', (event) => {
-      update(state => ({
-        ...state,
-        currentPath: event.payload.path,
-        totalScanned: event.payload.total_scanned,
-        // Update tree data progressively
-        data: mergeNodeData(state.data, event.payload.node_data),
-      }));
+      update(state => {
+        if (!state.scanning) return state; // Ignore if not scanning
+        return {
+          ...state,
+          currentPath: event.payload.path,
+          totalScanned: event.payload.total_scanned,
+          // Update tree data progressively
+          data: mergeNodeData(state.data, event.payload.node_data),
+        };
+      });
     });
 
     // Listen for scan complete
     unlistenComplete = await listen('scan:complete', (event) => {
-      update(state => ({
-        ...state,
-        scanning: false,
-        data: event.payload.root,
-        totalScanned: event.payload.total_scanned,
-        currentPath: '',
-      }));
+      update(state => {
+        if (!state.scanning) return state; // Ignore if not scanning
+        return {
+          ...state,
+          scanning: false,
+          data: event.payload.root,
+          totalScanned: event.payload.total_scanned,
+          currentPath: '',
+        };
+      });
     });
 
     // Listen for errors
     unlistenError = await listen('scan:error', (event) => {
-      update(state => ({
-        ...state,
-        scanning: false,
-        error: event.payload.message,
-        currentPath: '',
-      }));
+      update(state => {
+        if (!state.scanning) return state; // Ignore if not scanning
+        return {
+          ...state,
+          scanning: false,
+          error: event.payload.message,
+          currentPath: '',
+        };
+      });
     });
   };
 
@@ -98,11 +107,13 @@ function createScanStore() {
     cancelScan: async () => {
       try {
         await invoke('cancel_scan');
-        update(state => ({
-          ...state,
+        set({
           scanning: false,
+          data: null,
+          totalScanned: 0,
           currentPath: '',
-        }));
+          error: null,
+        });
       } catch (err) {
         console.error('Failed to cancel scan:', err);
       }
