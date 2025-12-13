@@ -28,4 +28,5 @@ rayon = "1"
 walkdir = "2"
 num_cpus = "1"
 dirs = "5"
+dashmap = "6"
 
