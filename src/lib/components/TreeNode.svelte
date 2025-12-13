@@ -1,6 +1,7 @@
 <script lang="ts">
   import TreeNode from "./TreeNode.svelte";
   import type { DirNode } from "../stores/scan";
+  import { scanStore } from "../stores/scan";
   import { invoke } from "@tauri-apps/api/core";
 
   interface Props {
@@ -58,7 +59,7 @@
     if (confirm(`Are you sure you want to move "${node.name}" to trash?`)) {
       try {
         await invoke("file_delete", { path: node.path });
-        // TODO: Refresh the tree after deletion
+        scanStore.removeNode(node.path);
       } catch (err) {
         console.error("Failed to move to trash:", err);
         alert(`Failed to move to trash: ${err}`);

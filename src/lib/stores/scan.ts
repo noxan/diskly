@@ -93,6 +93,26 @@ function createScanStore() {
     ];
   };
 
+  const removeNode = (root: DirNode | null, pathToRemove: string): DirNode | null => {
+    if (!root) return null;
+    if (root.path === pathToRemove) return null;
+
+    if (!root.is_file && root.children) {
+      const updatedChildren = root.children
+        .map((child) => removeNode(child, pathToRemove))
+        .filter((child): child is DirNode => child !== null);
+
+      const removedSize = root.children.length - updatedChildren.length;
+      if (removedSize > 0) {
+        const newSize = updatedChildren.reduce((sum, child) => sum + child.size, 0);
+        return { ...root, children: updatedChildren, size: newSize };
+      }
+      return { ...root, children: updatedChildren };
+    }
+
+    return root;
+  };
+
   return {
     subscribe,
     async startScan(path: string) {
@@ -111,6 +131,9 @@ function createScanStore() {
         console.error("Failed to cancel scan:", err);
       }
       set(initial);
+    },
+    removeNode(path: string) {
+      update((s) => ({ ...s, data: removeNode(s.data, path) }));
     },
     reset: () => set(initial),
   };
