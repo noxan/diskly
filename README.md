@@ -6,7 +6,7 @@ A fast, cross-platform disk space visualization app built with Tauri + Svelte.
 
 - **Fast Parallel Scanning**: Multi-threaded directory traversal using Rayon (80% CPU cores)
 - **Event-Driven Updates**: Progressive UI updates as directories complete scanning
-- **Smart File Handling**: 
+- **Smart File Handling**:
   - Handles permission errors gracefully
   - Counts hard links only once
   - Treats symlinks as files
@@ -20,42 +20,18 @@ A fast, cross-platform disk space visualization app built with Tauri + Svelte.
 - **Frontend**: Svelte 5 + Tailwind CSS
 - **Build**: Vite
 
-## Prerequisites
-
-### System Dependencies (Linux)
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  libgtk-3-dev \
-  libwebkit2gtk-4.1-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libglib2.0-dev
-```
-
-### Rust
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-### Node.js & npm
-
-Version 18+ recommended.
-
 ## Development
 
 Install dependencies:
 
 ```bash
-npm install
+bun install
 ```
 
 Run in development mode:
 
 ```bash
-npm run tauri dev
+bun tauri dev
 ```
 
 ## Build
@@ -63,7 +39,7 @@ npm run tauri dev
 Production build:
 
 ```bash
-npm run tauri build
+bun tauri build
 ```
 
 The built app will be in `src-tauri/target/release/bundle/`.
