@@ -1,27 +1,15 @@
 mod scanner;
-mod cache;
 
 use scanner::Scanner;
-use cache::ScanCache;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, State, Emitter};
 
 struct AppState {
     scanner: Arc<Mutex<Option<Scanner>>>,
-    cache: Arc<ScanCache>,
 }
 
 #[tauri::command]
 async fn scan_directory(path: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    // Check cache first
-    if let Some(cached) = state.cache.get(&path) {
-        let _ = app.emit("scan:complete", scanner::ScanComplete {
-            root: cached,
-            total_scanned: 0,
-        });
-        return Ok(());
-    }
-
     let scanner = Scanner::new(app.clone());
     
     // Store scanner for cancellation
@@ -31,15 +19,9 @@ async fn scan_directory(path: String, app: AppHandle, state: State<'_, AppState>
     }
 
     // Run scan in background
-    let _cache = state.cache.clone();
-    let _path_clone = path.clone();
-    
     tokio::spawn(async move {
         match scanner.scan_directory(path.clone()) {
-            Ok(_) => {
-                // Cache the result - we'll need to get it from the complete event
-                // For simplicity, we skip caching here and let the frontend handle it
-            }
+            Ok(_) => {},
             Err(e) => {
                 eprintln!("Scan error: {}", e);
             }
@@ -84,7 +66,6 @@ pub fn run() {
         .setup(|app| {
             let state = AppState {
                 scanner: Arc::new(Mutex::new(None)),
-                cache: Arc::new(ScanCache::new()),
             };
             app.manage(state);
             Ok(())
