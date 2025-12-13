@@ -40,6 +40,12 @@ pub struct ScannerCore {
     inode_tracker: Arc<Mutex<HashMap<(u64, u64), PathBuf>>>,
 }
 
+impl Default for ScannerCore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScannerCore {
     pub fn new() -> Self {
         Self {
@@ -190,14 +196,6 @@ impl ScannerCore {
 
     pub fn get_total_scanned(&self) -> u64 {
         self.total_scanned.load(Ordering::SeqCst)
-    }
-
-    pub(crate) fn total_scanned(&self) -> &Arc<AtomicU64> {
-        &self.total_scanned
-    }
-
-    pub(crate) fn cancelled(&self) -> &Arc<AtomicBool> {
-        &self.cancelled
     }
 }
 

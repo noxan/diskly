@@ -2,7 +2,7 @@ pub mod scanner;
 
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 struct AppState {
     scanner: Arc<Mutex<Option<Scanner>>>,
