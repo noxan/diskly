@@ -199,6 +199,7 @@ impl ScannerCore {
     }
 }
 
+#[derive(Clone)]
 pub struct Scanner {
     app: AppHandle,
     cancelled: Arc<AtomicBool>,

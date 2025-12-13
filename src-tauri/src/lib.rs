@@ -19,7 +19,7 @@ async fn scan_directory(
     // Store scanner for cancellation
     {
         let mut scanner_lock = state.scanner.lock().unwrap();
-        *scanner_lock = Some(Scanner::new(app.clone()));
+        *scanner_lock = Some(scanner.clone());
     }
 
     // Run scan in background on blocking thread pool
