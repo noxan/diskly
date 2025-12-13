@@ -205,6 +205,7 @@ pub struct Scanner {
     cancelled: Arc<AtomicBool>,
     total_scanned: Arc<AtomicU64>,
     inode_tracker: Arc<DashMap<(u64, u64), PathBuf>>,
+    dir_count: Arc<AtomicU64>,
 }
 
 fn build_dir_node(path: &Path, size: u64, is_file: bool, children: Vec<DirNode>) -> DirNode {
@@ -228,6 +229,7 @@ impl Scanner {
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
             inode_tracker: Arc::new(DashMap::new()),
+            dir_count: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -249,6 +251,7 @@ impl Scanner {
         // Reset state
         self.cancelled.store(false, Ordering::SeqCst);
         self.total_scanned.store(0, Ordering::SeqCst);
+        self.dir_count.store(0, Ordering::SeqCst);
         self.inode_tracker.clear();
 
         // Start scan
@@ -317,16 +320,19 @@ impl Scanner {
         let total_size: u64 = children.iter().map(|c| c.size).sum();
         let node = build_dir_node(path, total_size, false, children);
 
-        // Emit directory complete event
-        let total = self.total_scanned.load(Ordering::SeqCst);
-        let _ = self.app.emit(
-            "scan:directory_complete",
-            ScanProgress {
-                path: path.to_string_lossy().to_string(),
-                node_data: node.clone(),
-                total_scanned: total,
-            },
-        );
+        // Emit directory complete event (throttled - only every 100 directories)
+        let dir_count = self.dir_count.fetch_add(1, Ordering::SeqCst);
+        if dir_count % 100 == 0 {
+            let total = self.total_scanned.load(Ordering::SeqCst);
+            let _ = self.app.emit(
+                "scan:directory_complete",
+                ScanProgress {
+                    path: path.to_string_lossy().to_string(),
+                    node_data: node.clone(),
+                    total_scanned: total,
+                },
+            );
+        }
 
         Ok(node)
     }
