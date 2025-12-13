@@ -1,4 +1,6 @@
 <script>
+  import TreeNode from './TreeNode.svelte';
+  
   let { node, maxSize } = $props();
   
   let expanded = $state(false);
