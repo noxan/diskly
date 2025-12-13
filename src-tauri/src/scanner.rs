@@ -7,6 +7,11 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
+#[cfg(test)]
+use std::collections::HashMap;
+#[cfg(test)]
+use std::sync::Mutex;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirNode {
     pub name: String,
@@ -197,5 +202,127 @@ impl Scanner {
     #[cfg(not(unix))]
     fn get_file_size(&self, _path: &Path, metadata: &fs::Metadata) -> u64 {
         metadata.len()
+    }
+}
+
+// Benchmark-friendly scanner without Tauri dependencies
+pub struct ScannerCore {
+    cancelled: Arc<AtomicBool>,
+    total_scanned: Arc<AtomicU64>,
+    #[cfg(unix)]
+    inode_tracker: Arc<Mutex<HashMap<(u64, u64), PathBuf>>>,
+}
+
+impl Default for ScannerCore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ScannerCore {
+    pub fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            total_scanned: Arc::new(AtomicU64::new(0)),
+            #[cfg(unix)]
+            inode_tracker: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    pub fn scan_directory(&self, path: &Path) -> Result<DirNode, String> {
+        if !path.exists() {
+            return Err("Path does not exist".to_string());
+        }
+
+        if !path.is_dir() {
+            return Err("Path is not a directory".to_string());
+        }
+
+        // Reset state
+        self.cancelled.store(false, Ordering::SeqCst);
+        self.total_scanned.store(0, Ordering::SeqCst);
+        #[cfg(unix)]
+        self.inode_tracker.lock().unwrap().clear();
+
+        self.scan_recursive(path)
+    }
+
+    fn scan_recursive(&self, path: &Path) -> Result<DirNode, String> {
+        if self.cancelled.load(Ordering::SeqCst) {
+            return Err("Scan cancelled".to_string());
+        }
+
+        let metadata = match fs::metadata(path) {
+            Ok(m) => m,
+            Err(_) => {
+                return Ok(build_dir_node(path, 0, false, vec![]));
+            }
+        };
+
+        // Handle files (including symlinks as files)
+        if !metadata.is_dir() {
+            let size = self.get_file_size(path, &metadata);
+            self.total_scanned.fetch_add(1, Ordering::SeqCst);
+            return Ok(build_dir_node(path, size, true, vec![]));
+        }
+
+        // Read directory entries
+        let entries: Vec<PathBuf> = match fs::read_dir(path) {
+            Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
+            Err(_) => {
+                return Ok(build_dir_node(path, 0, false, vec![]));
+            }
+        };
+
+        // Scan children in parallel
+        let children: Vec<DirNode> = entries
+            .par_iter()
+            .filter_map(|entry| {
+                if self.cancelled.load(Ordering::SeqCst) {
+                    return None;
+                }
+                self.scan_recursive(entry).ok()
+            })
+            .collect();
+
+        // Calculate total size
+        let total_size: u64 = children.iter().map(|c| c.size).sum();
+        Ok(build_dir_node(path, total_size, false, children))
+    }
+
+    #[cfg(unix)]
+    fn get_file_size(&self, path: &Path, metadata: &fs::Metadata) -> u64 {
+        use std::os::unix::fs::MetadataExt;
+
+        let nlink = metadata.nlink();
+
+        // Simple case: no hard links
+        if nlink <= 1 {
+            return metadata.len();
+        }
+
+        // Handle hard links - count only once
+        let key = (metadata.dev(), metadata.ino());
+        let mut tracker = self.inode_tracker.lock().unwrap();
+
+        if tracker.contains_key(&key) {
+            return 0;
+        }
+
+        tracker.insert(key, path.to_path_buf());
+        metadata.len()
+    }
+
+    #[cfg(not(unix))]
+    fn get_file_size(&self, _path: &Path, metadata: &fs::Metadata) -> u64 {
+        metadata.len()
+    }
+
+    pub fn get_total_scanned(&self) -> u64 {
+        self.total_scanned.load(Ordering::SeqCst)
     }
 }
