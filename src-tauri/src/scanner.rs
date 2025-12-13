@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -54,6 +54,7 @@ impl Scanner {
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
             inode_tracker: Arc::new(Mutex::new(HashMap::new())),
+            visited_dirs: Arc::new(Mutex::new(HashSet::new())),
             last_progress_emit: Arc::new(Mutex::new(Instant::now())),
         }
     }
@@ -77,6 +78,7 @@ impl Scanner {
         self.cancelled.store(false, Ordering::SeqCst);
         self.total_scanned.store(0, Ordering::SeqCst);
         self.inode_tracker.lock().unwrap().clear();
+        self.visited_dirs.lock().unwrap().clear();
 
         // Start scan
         match self.scan_recursive(&path_buf) {
@@ -139,6 +141,31 @@ impl Scanner {
                 children: vec![],
                 is_file: true,
             });
+        }
+
+        // Check for symlink cycles (directories only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let dev = metadata.dev();
+            let ino = metadata.ino();
+            let key = (dev, ino);
+
+            let mut visited = self.visited_dirs.lock().unwrap();
+            if !visited.insert(key) {
+                // Already visited this directory, skip to avoid cycle
+                return Ok(DirNode {
+                    name: path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    size: 0,
+                    children: vec![],
+                    is_file: false,
+                });
+            }
         }
 
         // Read directory entries
