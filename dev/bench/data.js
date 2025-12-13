@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765655989333,
+  "lastUpdate": 1765657080961,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -161,6 +161,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 2905351,
             "range": "± 18763",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "richard@stromer.org",
+            "name": "Richard",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "richard@stromer.org",
+            "name": "Richard",
+            "username": "noxan"
+          },
+          "distinct": true,
+          "id": "6221b294a440e3b84e2964d53d3fb4f36f89b609",
+          "message": "remove node from list after deletion",
+          "timestamp": "2025-12-13T21:15:10+01:00",
+          "tree_id": "1179d1adf8befdd62456357ee92edb5f3b9bef83",
+          "url": "https://github.com/noxan/diskly/commit/6221b294a440e3b84e2964d53d3fb4f36f89b609"
+        },
+        "date": 1765657080515,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 359594,
+            "range": "± 23288",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2657391,
+            "range": "± 36616",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7774696,
+            "range": "± 182706",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 6041587,
+            "range": "± 105391",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 3033436,
+            "range": "± 49981",
             "unit": "ns/iter"
           }
         ]
