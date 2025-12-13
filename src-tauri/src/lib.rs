@@ -23,20 +23,12 @@ async fn scan_directory(
         *scanner_lock = Some(scanner.clone());
     }
 
-    // Get scanner reference for the blocking task
-    let scanner = {
-        let scanner_lock = state.scanner.lock().unwrap();
-        scanner_lock.as_ref().cloned()
-    };
-
-    if let Some(scanner) = scanner {
-        // Run scan in background on blocking thread pool
-        tokio::task::spawn_blocking(move || {
-            if let Err(e) = scanner.scan_directory(path.clone()) {
-                eprintln!("Scan error: {}", e);
-            }
-        });
-    }
+    // Run scan in background on blocking thread pool
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = scanner.scan_directory(path.clone()) {
+            eprintln!("Scan error: {}", e);
+        }
+    });
 
     Ok(())
 }
