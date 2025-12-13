@@ -207,6 +207,20 @@ pub struct Scanner {
     inode_tracker: Arc<DashMap<(u64, u64), PathBuf>>,
 }
 
+fn build_dir_node(path: &Path, size: u64, is_file: bool, children: Vec<DirNode>) -> DirNode {
+    DirNode {
+        name: path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        path: path.to_string_lossy().to_string(),
+        size,
+        children,
+        is_file,
+    }
+}
+
 impl Scanner {
     pub fn new(app: AppHandle) -> Self {
         Self {
@@ -268,17 +282,7 @@ impl Scanner {
             Ok(m) => m,
             Err(_) => {
                 // Skip on permission errors
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(build_dir_node(path, 0, false, vec![]));
             }
         };
 
@@ -286,18 +290,7 @@ impl Scanner {
         if !metadata.is_dir() {
             let size = self.get_file_size(path, &metadata);
             self.total_scanned.fetch_add(1, Ordering::SeqCst);
-
-            return Ok(DirNode {
-                name: path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                path: path.to_string_lossy().to_string(),
-                size,
-                children: vec![],
-                is_file: true,
-            });
+            return Ok(build_dir_node(path, size, true, vec![]));
         }
 
         // Read directory entries
@@ -305,17 +298,7 @@ impl Scanner {
             Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
             Err(_) => {
                 // Skip on permission errors
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(build_dir_node(path, 0, false, vec![]));
             }
         };
 
@@ -332,18 +315,7 @@ impl Scanner {
 
         // Calculate total size
         let total_size: u64 = children.iter().map(|c| c.size).sum();
-
-        let node = DirNode {
-            name: path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            path: path.to_string_lossy().to_string(),
-            size: total_size,
-            children,
-            is_file: false,
-        };
+        let node = build_dir_node(path, total_size, false, children);
 
         // Emit directory complete event
         let total = self.total_scanned.load(Ordering::SeqCst);
