@@ -1,3 +1,4 @@
+pub mod file_ops;
 pub mod scanner;
 
 use scanner::Scanner;
@@ -74,6 +75,9 @@ pub fn run() {
             cancel_scan,
             get_home_dir,
             pick_directory,
+            file_ops::file_preview,
+            file_ops::file_open,
+            file_ops::file_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
