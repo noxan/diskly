@@ -56,7 +56,7 @@ fn create_deep_narrow_tree(base: &Path, depth: usize) -> usize {
 
 fn bench_scanner(c: &mut Criterion) {
     let mut group = c.benchmark_group("scanner");
-    group.sample_size(10);
+    group.sample_size(25);
 
     // Small directory: 100 files, 3 levels deep
     group.bench_function("small_100_files_3_levels", |b| {
