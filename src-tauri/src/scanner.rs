@@ -1,10 +1,10 @@
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,7 +57,7 @@ impl Scanner {
 
     pub fn scan_directory(&self, path: String) -> Result<(), String> {
         let path_buf = PathBuf::from(&path);
-        
+
         if !path_buf.exists() {
             return Err("Path does not exist".to_string());
         }
@@ -75,16 +75,19 @@ impl Scanner {
         match self.scan_recursive(&path_buf) {
             Ok(root) => {
                 let total = self.total_scanned.load(Ordering::SeqCst);
-                let _ = self.app.emit("scan:complete", ScanComplete {
-                    root,
-                    total_scanned: total,
-                });
+                let _ = self.app.emit(
+                    "scan:complete",
+                    ScanComplete {
+                        root,
+                        total_scanned: total,
+                    },
+                );
                 Ok(())
             }
             Err(e) => {
-                let _ = self.app.emit("scan:error", ScanError {
-                    message: e.clone(),
-                });
+                let _ = self
+                    .app
+                    .emit("scan:error", ScanError { message: e.clone() });
                 Err(e)
             }
         }
@@ -100,7 +103,8 @@ impl Scanner {
             Err(_) => {
                 // Skip on permission errors
                 return Ok(DirNode {
-                    name: path.file_name()
+                    name: path
+                        .file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("unknown")
                         .to_string(),
@@ -116,9 +120,10 @@ impl Scanner {
         if !metadata.is_dir() {
             let size = self.get_file_size(path, &metadata);
             self.total_scanned.fetch_add(1, Ordering::SeqCst);
-            
+
             return Ok(DirNode {
-                name: path.file_name()
+                name: path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown")
                     .to_string(),
@@ -131,13 +136,12 @@ impl Scanner {
 
         // Read directory entries
         let entries: Vec<PathBuf> = match fs::read_dir(path) {
-            Ok(entries) => entries
-                .filter_map(|e| e.ok().map(|e| e.path()))
-                .collect(),
+            Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
             Err(_) => {
                 // Skip on permission errors
                 return Ok(DirNode {
-                    name: path.file_name()
+                    name: path
+                        .file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("unknown")
                         .to_string(),
@@ -173,7 +177,8 @@ impl Scanner {
         let total_size: u64 = children.iter().map(|c| c.size).sum();
 
         let node = DirNode {
-            name: path.file_name()
+            name: path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown")
                 .to_string(),
@@ -185,11 +190,14 @@ impl Scanner {
 
         // Emit directory complete event
         let total = self.total_scanned.load(Ordering::SeqCst);
-        let _ = self.app.emit("scan:directory_complete", ScanProgress {
-            path: path.to_string_lossy().to_string(),
-            node_data: node.clone(),
-            total_scanned: total,
-        });
+        let _ = self.app.emit(
+            "scan:directory_complete",
+            ScanProgress {
+                path: path.to_string_lossy().to_string(),
+                node_data: node.clone(),
+                total_scanned: total,
+            },
+        );
 
         Ok(node)
     }
@@ -197,7 +205,7 @@ impl Scanner {
     #[cfg(unix)]
     fn get_file_size(&self, path: &Path, metadata: &fs::Metadata) -> u64 {
         use std::os::unix::fs::MetadataExt;
-        
+
         let dev = metadata.dev();
         let ino = metadata.ino();
         let nlink = metadata.nlink();
@@ -206,17 +214,13 @@ impl Scanner {
         if nlink > 1 {
             let mut tracker = self.inode_tracker.lock().unwrap();
             let key = (dev, ino);
-            
+
             if let Some(existing_path) = tracker.get(&key) {
-                // Already counted this inode
-                if existing_path == path {
-                    return metadata.len();
-                }
-                return 0;
-            } else {
-                tracker.insert(key, path.to_path_buf());
-                return metadata.len();
+                return 0; // Already counted this inode at a different path
             }
+
+            tracker.insert(key, path.to_path_buf());
+            return metadata.len();
         }
 
         metadata.len()

@@ -60,9 +60,16 @@ function createScanStore() {
       return newNode;
     }
 
-    // Simple replacement strategy - in production, you'd do a proper merge
-    // For now, just return the deepest node we have
-    return existingData.size < newNode.size ? newNode : existingData;
+    // Prefer newest update based on timestamp or sequence number
+    if (newNode.updatedAt && existingData.updatedAt) {
+      return newNode.updatedAt > existingData.updatedAt ? newNode : existingData;
+    }
+    if (newNode.seq !== undefined && existingData.seq !== undefined) {
+      return newNode.seq > existingData.seq ? newNode : existingData;
+    }
+
+    // Default to newNode (treat as newer when no timing metadata exists)
+    return newNode;
   };
 
   return {

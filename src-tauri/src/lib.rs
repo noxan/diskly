@@ -2,29 +2,30 @@ mod scanner;
 
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State, Emitter};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 struct AppState {
     scanner: Arc<Mutex<Option<Scanner>>>,
 }
 
 #[tauri::command]
-async fn scan_directory(path: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+async fn scan_directory(
+    path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let scanner = Scanner::new(app.clone());
-    
+
     // Store scanner for cancellation
     {
         let mut scanner_lock = state.scanner.lock().unwrap();
         *scanner_lock = Some(Scanner::new(app.clone()));
     }
 
-    // Run scan in background
-    tokio::spawn(async move {
-        match scanner.scan_directory(path.clone()) {
-            Ok(_) => {},
-            Err(e) => {
-                eprintln!("Scan error: {}", e);
-            }
+    // Run scan in background on blocking thread pool
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = scanner.scan_directory(path.clone()) {
+            eprintln!("Scan error: {}", e);
         }
     });
 
@@ -50,11 +51,9 @@ async fn get_home_dir() -> Result<String, String> {
 #[tauri::command]
 async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
-    
-    let result = app.dialog()
-        .file()
-        .blocking_pick_folder();
-    
+
+    let result = app.dialog().file().blocking_pick_folder();
+
     Ok(result.map(|p| p.to_string()))
 }
 
