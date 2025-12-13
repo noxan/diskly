@@ -69,4 +69,4 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
       - name: Run benchmarks
-        run: cargo bench --manifest-path src-tauri/Cargo.toml --no-fail-fast -- --output-format bencher
+        run: cargo bench --manifest-path src-tauri/Cargo.toml --no-fail-fast
