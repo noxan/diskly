@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use rayon::prelude::*;
-use rayon::ThreadPool;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -206,24 +205,15 @@ pub struct Scanner {
     cancelled: Arc<AtomicBool>,
     total_scanned: Arc<AtomicU64>,
     inode_tracker: Arc<DashMap<(u64, u64), PathBuf>>,
-    thread_pool: ThreadPool,
 }
 
 impl Scanner {
     pub fn new(app: AppHandle) -> Self {
-        // Use 80% of CPU cores
-        let num_cores = num_cpus::get();
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads((num_cores * 4 / 5).max(1))
-            .build()
-            .expect("Failed to create thread pool");
-
         Self {
             app,
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
             inode_tracker: Arc::new(DashMap::new()),
-            thread_pool,
         }
     }
 
@@ -329,18 +319,16 @@ impl Scanner {
             }
         };
 
-        // Scan children in parallel using thread pool
-        let children: Vec<DirNode> = self.thread_pool.install(|| {
-            entries
-                .par_iter()
-                .filter_map(|entry| {
-                    if self.cancelled.load(Ordering::SeqCst) {
-                        return None;
-                    }
-                    self.scan_recursive(entry).ok()
-                })
-                .collect()
-        });
+        // Scan children in parallel
+        let children: Vec<DirNode> = entries
+            .par_iter()
+            .filter_map(|entry| {
+                if self.cancelled.load(Ordering::SeqCst) {
+                    return None;
+                }
+                self.scan_recursive(entry).ok()
+            })
+            .collect();
 
         // Calculate total size
         let total_size: u64 = children.iter().map(|c| c.size).sum();
