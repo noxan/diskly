@@ -117,13 +117,15 @@
 
     <div class="flex gap-1 mr-2 h-6">
       {#if showActions}
-        <button
-          onclick={handlePreview}
-          class="p-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-          title="Preview"
-        >
-          <Eye size={14} />
-        </button>
+        {#if node.is_file}
+          <button
+            onclick={handlePreview}
+            class="p-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+            title="Preview"
+          >
+            <Eye size={14} />
+          </button>
+        {/if}
         <button
           onclick={handleOpenInFinder}
           class="p-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
