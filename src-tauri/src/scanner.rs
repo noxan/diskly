@@ -157,7 +157,7 @@ impl Scanner {
 
         // Emit directory complete event (throttled - only every 100 directories)
         let dir_count = self.dir_count.fetch_add(1, Ordering::SeqCst);
-        if dir_count % 100 == 0 {
+        if dir_count.is_multiple_of(100) {
             let total = self.total_scanned.load(Ordering::SeqCst);
             let _ = self.app.emit(
                 "scan:directory_complete",
