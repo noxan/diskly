@@ -52,7 +52,8 @@
   };
 
   const renderChart = () => {
-    if (!isClient || !canvas || !ctx) return;
+    const context = ctx;
+    if (!isClient || !canvas || !context) return;
 
     const items = buildDataset();
     const dpr = window.devicePixelRatio || 1;
@@ -64,12 +65,12 @@
     canvas.height = height;
     canvas.style.height = `${minHeight}px`;
 
-    ctx.clearRect(0, 0, width, height);
+    context.clearRect(0, 0, width, height);
 
     if (items.length === 0) {
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = `${14 * dpr}px Inter, system-ui, -apple-system, sans-serif`;
-      ctx.fillText("No items to chart", 12 * dpr, 24 * dpr);
+      context.fillStyle = "#94a3b8";
+      context.font = `${14 * dpr}px Inter, system-ui, -apple-system, sans-serif`;
+      context.fillText("No items to chart", 12 * dpr, 24 * dpr);
       return;
     }
 
@@ -80,8 +81,8 @@
     const maxBarWidth = width - padding * 2 - nameOffset;
     const maxSize = getMaxSize(items) || 1;
 
-    ctx.font = `${13 * dpr}px Inter, system-ui, -apple-system, sans-serif`;
-    ctx.textBaseline = "middle";
+    context.font = `${13 * dpr}px Inter, system-ui, -apple-system, sans-serif`;
+    context.textBaseline = "middle";
 
     items.forEach((item, idx) => {
       const y = padding + idx * (barHeight + barGap);
@@ -91,21 +92,23 @@
       const rectX = padding + nameOffset;
       const rectY = y;
 
-      ctx.fillStyle = idx < 3 ? "#2563eb" : "#4f46e5";
-      drawRoundedRect(ctx, rectX, rectY, barWidth, barHeight, 6 * dpr);
-      ctx.fill();
+      context.fillStyle = idx < 3 ? "#2563eb" : "#4f46e5";
+      drawRoundedRect(context, rectX, rectY, barWidth, barHeight, 6 * dpr);
+      context.fill();
 
-      ctx.fillStyle = "#0f172a";
-      ctx.fillText(item.name, padding, y + barHeight / 2);
+      context.fillStyle = "#0f172a";
+      context.fillText(item.name, padding, y + barHeight / 2);
 
-      ctx.fillStyle = "#475569";
-      ctx.fillText(formatSize(item.size), padding + nameOffset + barWidth + 8 * dpr, y + barHeight / 2);
+      context.fillStyle = "#475569";
+      context.fillText(formatSize(item.size), padding + nameOffset + barWidth + 8 * dpr, y + barHeight / 2);
     });
   };
 
   onMount(() => {
     if (!canvas) return;
-    ctx = canvas.getContext("2d");
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    ctx = context;
     renderChart();
 
     resizeObserver = new ResizeObserver(renderChart);
