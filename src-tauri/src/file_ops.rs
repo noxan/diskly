@@ -1,11 +1,12 @@
+use std::path::Path;
 use std::process::Command;
 
 #[tauri::command]
-pub async fn file_preview(path: String) -> Result<(), String> {
+pub async fn file_preview(_path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         Command::new("qlmanage")
-            .args(["-p", &path])
+            .args(["-p", &_path])
             .spawn()
             .map_err(|e| format!("Failed to preview file: {}", e))?;
         Ok(())
