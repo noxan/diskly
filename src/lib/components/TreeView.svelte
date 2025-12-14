@@ -1,5 +1,6 @@
 <script lang="ts">
   import TreeNode from "./TreeNode.svelte";
+  import UsageChart from "./UsageChart.svelte";
   import { scanStore, type DirNode } from "../stores/scan";
 
   let store = $derived($scanStore);
@@ -31,7 +32,7 @@
 </script>
 
 {#if data && !scanning}
-  <div class="max-w-4xl mx-auto p-6">
+  <div class="max-w-6xl mx-auto p-6 space-y-6">
     <div class="mb-6">
       <div class="flex items-baseline justify-between mb-2">
         <h2
@@ -61,21 +62,31 @@
       </div>
     </div>
 
-    <div
-      class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
-    >
-      <div class="max-h-[70vh] overflow-y-auto">
-        {#if data.children && data.children.length > 0}
-          <div class="p-2">
-            {#each data.children.sort((a, b) => b.size - a.size) as child (child.path)}
-              <TreeNode node={child} maxSize={data.size} />
-            {/each}
-          </div>
-        {:else}
-          <div class="p-8 text-center text-gray-400 dark:text-gray-500">
-            Empty directory
-          </div>
-        {/if}
+    <div class="grid gap-6 lg:grid-cols-[1.05fr_1.5fr]">
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-gray-100 dark:border-gray-700">
+          <div class="text-sm text-gray-500 dark:text-gray-400">Visual overview</div>
+          <div class="text-lg font-semibold text-gray-800 dark:text-gray-100">Usage distribution</div>
+        </div>
+        <div class="p-4">
+          <UsageChart root={data} />
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div class="max-h-[70vh] overflow-y-auto">
+          {#if data.children && data.children.length > 0}
+            <div class="p-2">
+              {#each data.children.sort((a, b) => b.size - a.size) as child (child.path)}
+                <TreeNode node={child} maxSize={data.size} />
+              {/each}
+            </div>
+          {:else}
+            <div class="p-8 text-center text-gray-400 dark:text-gray-500">
+              Empty directory
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
   </div>
