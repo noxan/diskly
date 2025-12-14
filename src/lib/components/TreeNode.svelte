@@ -1,5 +1,4 @@
 <script lang="ts">
-  import TreeNode from "./TreeNode.svelte";
   import type { DirNode } from "../stores/scan";
   import { scanStore } from "../stores/scan";
   import { invoke } from "@tauri-apps/api/core";
@@ -16,11 +15,13 @@
   interface Props {
     node: DirNode;
     maxSize: number;
+    depth?: number;
+    expanded?: boolean;
+    onToggleExpand?: () => void;
   }
 
-  let { node, maxSize }: Props = $props();
+  let { node, maxSize, depth = 0, expanded = false, onToggleExpand }: Props = $props();
 
-  let expanded = $state(false);
   let showActions = $state(false);
 
   function formatSize(bytes: number): string {
@@ -35,13 +36,9 @@
     return max > 0 ? (size / max) * 100 : 0;
   }
 
-  function sortedChildren(children: DirNode[]): DirNode[] {
-    return [...children].sort((a, b) => b.size - a.size);
-  }
-
   function toggleExpand(): void {
-    if (!node.is_file) {
-      expanded = !expanded;
+    if (!node.is_file && onToggleExpand) {
+      onToggleExpand();
     }
   }
 
@@ -77,9 +74,10 @@
   }
 </script>
 
-<div class="tree-node">
+<div class="tree-node relative">
   <div
     class="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md transition-colors min-h-[2.5rem]"
+    style="padding-left: {depth * 24 + 12}px;"
     onmouseenter={() => (showActions = true)}
     onmouseleave={() => (showActions = false)}
     role="button"
@@ -148,7 +146,7 @@
     </span>
   </div>
 
-  <div class="px-3 mb-1">
+  <div class="px-3 mb-1" style="padding-left: {depth * 24 + 12}px;">
     <div class="h-1 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
       <div
         class="h-full bg-blue-500 dark:bg-blue-600 transition-all"
@@ -156,12 +154,4 @@
       ></div>
     </div>
   </div>
-
-  {#if expanded && !node.is_file && node.children && node.children.length > 0}
-    <div class="ml-6 border-l border-gray-200 dark:border-gray-700 pl-2">
-      {#each sortedChildren(node.children) as child (child.path)}
-        <TreeNode node={child} maxSize={node.size} />
-      {/each}
-    </div>
-  {/if}
 </div>

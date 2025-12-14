@@ -1,10 +1,19 @@
 <script lang="ts">
   import TreeNode from "./TreeNode.svelte";
   import { scanStore, type DirNode } from "../stores/scan";
+  import { createVirtualizer } from "@tanstack/svelte-virtual";
 
   let store = $derived($scanStore);
   let data = $derived(store.data);
   let scanning = $derived(store.scanning);
+  let containerElement = $state<HTMLDivElement | null>(null);
+  let expandedPaths = $state<Set<string>>(new Set());
+
+  interface FlatNode {
+    node: DirNode;
+    depth: number;
+    parentSize: number;
+  }
 
   function formatSize(bytes: number): string {
     if (bytes === 0) return "0 B";
@@ -25,8 +34,73 @@
     return count;
   }
 
+  function flattenTree(
+    node: DirNode,
+    depth: number = 0,
+    parentSize: number = 0
+  ): FlatNode[] {
+    const result: FlatNode[] = [];
+    if (depth === 0 && node.children) {
+      // Children are already sorted by size in Rust backend
+      for (const child of node.children) {
+        result.push({ node: child, depth, parentSize: node.size });
+        if (
+          !child.is_file &&
+          child.children &&
+          expandedPaths.has(child.path)
+        ) {
+          result.push(...flattenTree(child, depth + 1, child.size));
+        }
+      }
+    } else if (!node.is_file && node.children) {
+      // Children are already sorted by size in Rust backend
+      for (const child of node.children) {
+        result.push({ node: child, depth, parentSize });
+        if (
+          !child.is_file &&
+          child.children &&
+          expandedPaths.has(child.path)
+        ) {
+          result.push(...flattenTree(child, depth + 1, child.size));
+        }
+      }
+    }
+    return result;
+  }
+
+  // Only flatten visible (expanded) nodes - O(n) where n = visible nodes
+  // This is necessary for virtual scrolling which requires a linear list
+  let flatNodes = $derived.by(() => {
+    if (!data || !data.children) return [];
+    return flattenTree(data);
+  });
+  
+  // Only use virtual scrolling for large lists (>100 items)
+  // For smaller trees, regular rendering is more efficient
+  const useVirtualization = $derived(flatNodes.length > 100);
+
+  const virtualizerStore = $derived.by(() => {
+    if (!containerElement) return null;
+    return createVirtualizer({
+      count: flatNodes.length,
+      getScrollElement: () => containerElement!,
+      estimateSize: () => 60,
+      overscan: 5,
+    });
+  });
+
+  function toggleExpand(path: string): void {
+    expandedPaths = new Set(expandedPaths);
+    if (expandedPaths.has(path)) {
+      expandedPaths.delete(path);
+    } else {
+      expandedPaths.add(path);
+    }
+  }
+
   function newScan(): void {
     scanStore.reset();
+    expandedPaths = new Set();
   }
 </script>
 
@@ -64,13 +138,49 @@
     <div
       class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
     >
-      <div class="max-h-[70vh] overflow-y-auto">
-        {#if data.children && data.children.length > 0}
-          <div class="p-2">
-            {#each data.children.sort((a, b) => b.size - a.size) as child (child.path)}
-              <TreeNode node={child} maxSize={data.size} />
-            {/each}
-          </div>
+      <div
+        bind:this={containerElement}
+        class="max-h-[70vh] overflow-y-auto"
+      >
+        {#if flatNodes.length > 0}
+          {#if useVirtualization && virtualizerStore}
+            {@const v = $virtualizerStore}
+            {#if v}
+              <div
+                style="height: {v.getTotalSize()}px; width: 100%; position: relative;"
+                class="p-2"
+              >
+                {#each v.getVirtualItems() as virtualItem (virtualItem.key)}
+                  {@const flatNode = flatNodes[virtualItem.index]}
+                  <div
+                    data-index={virtualItem.index}
+                    style="position: absolute; top: 0; left: 0; width: 100%; transform: translateY({virtualItem.start}px);"
+                  >
+                    <TreeNode
+                      node={flatNode.node}
+                      maxSize={flatNode.parentSize}
+                      depth={flatNode.depth}
+                      expanded={expandedPaths.has(flatNode.node.path)}
+                      onToggleExpand={() => toggleExpand(flatNode.node.path)}
+                    />
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <!-- Direct rendering for smaller trees - still flattened for consistency -->
+            <div class="p-2">
+              {#each flatNodes as flatNode (flatNode.node.path)}
+                <TreeNode
+                  node={flatNode.node}
+                  maxSize={flatNode.parentSize}
+                  depth={flatNode.depth}
+                  expanded={expandedPaths.has(flatNode.node.path)}
+                  onToggleExpand={() => toggleExpand(flatNode.node.path)}
+                />
+              {/each}
+            </div>
+          {/if}
         {:else}
           <div class="p-8 text-center text-gray-400 dark:text-gray-500">
             Empty directory

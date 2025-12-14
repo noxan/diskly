@@ -182,6 +182,10 @@ impl ScannerCore {
         // Calculate total size
         let total_size: u64 = children.iter().map(|c| c.size).sum();
 
+        // Sort children by size (descending) for better UX
+        let mut sorted_children = children;
+        sorted_children.sort_by(|a, b| b.size.cmp(&a.size));
+
         Ok(DirNode {
             name: path
                 .file_name()
@@ -190,7 +194,7 @@ impl ScannerCore {
                 .to_string(),
             path: path.to_string_lossy().to_string(),
             size: total_size,
-            children,
+            children: sorted_children,
             is_file: false,
         })
     }
@@ -380,6 +384,10 @@ impl Scanner {
 
         let total_size: u64 = children.iter().map(|c| c.size).sum();
 
+        // Sort children by size (descending) for better UX
+        let mut sorted_children = children;
+        sorted_children.sort_by(|a, b| b.size.cmp(&a.size));
+
         let node = DirNode {
             name: path
                 .file_name()
@@ -388,7 +396,7 @@ impl Scanner {
                 .to_string(),
             path: path.to_string_lossy().to_string(),
             size: total_size,
-            children,
+            children: sorted_children,
             is_file: false,
         };
 
