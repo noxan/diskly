@@ -128,5 +128,3 @@ fn bench_scanner(c: &mut Criterion) {
 
 criterion_group!(benches, bench_scanner);
 criterion_main!(benches);
-
-
