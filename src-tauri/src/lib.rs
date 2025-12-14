@@ -3,10 +3,22 @@ pub mod scanner;
 
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
+use sysinfo::{prelude::*, Disks};
 use tauri::{AppHandle, Manager, State};
 
 struct AppState {
     scanner: Arc<Mutex<Option<Scanner>>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VolumeInfo {
+    name: String,
+    mount_point: String,
+    total_space: u64,
+    available_space: u64,
+    file_system: String,
+    is_removable: bool,
 }
 
 #[tauri::command]
@@ -58,6 +70,26 @@ async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
     Ok(result.map(|p| p.to_string()))
 }
 
+#[tauri::command]
+async fn list_volumes() -> Result<Vec<VolumeInfo>, String> {
+    let mut disks = Disks::new_with_refreshed_list();
+    disks.refresh();
+
+    let volumes = disks
+        .iter()
+        .map(|disk| VolumeInfo {
+            name: disk.name().to_string_lossy().to_string(),
+            mount_point: disk.mount_point().to_string_lossy().to_string(),
+            total_space: disk.total_space(),
+            available_space: disk.available_space(),
+            file_system: String::from_utf8_lossy(disk.file_system()).to_string(),
+            is_removable: disk.is_removable(),
+        })
+        .collect();
+
+    Ok(volumes)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -75,6 +107,7 @@ pub fn run() {
             cancel_scan,
             get_home_dir,
             pick_directory,
+            list_volumes,
             file_ops::file_preview,
             file_ops::file_open,
             file_ops::file_delete,
