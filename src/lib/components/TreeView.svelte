@@ -41,8 +41,8 @@
   ): FlatNode[] {
     const result: FlatNode[] = [];
     if (depth === 0 && node.children) {
-      const sortedChildren = [...node.children].sort((a, b) => b.size - a.size);
-      for (const child of sortedChildren) {
+      // Children are already sorted by size in Rust backend
+      for (const child of node.children) {
         result.push({ node: child, depth, parentSize: node.size });
         if (
           !child.is_file &&
@@ -53,8 +53,8 @@
         }
       }
     } else if (!node.is_file && node.children) {
-      const sortedChildren = [...node.children].sort((a, b) => b.size - a.size);
-      for (const child of sortedChildren) {
+      // Children are already sorted by size in Rust backend
+      for (const child of node.children) {
         result.push({ node: child, depth, parentSize });
         if (
           !child.is_file &&
