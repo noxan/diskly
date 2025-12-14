@@ -68,10 +68,16 @@
     return result;
   }
 
+  // Only flatten visible (expanded) nodes - O(n) where n = visible nodes
+  // This is necessary for virtual scrolling which requires a linear list
   let flatNodes = $derived.by(() => {
     if (!data || !data.children) return [];
     return flattenTree(data);
   });
+  
+  // Only use virtual scrolling for large lists (>100 items)
+  // For smaller trees, regular rendering is more efficient
+  const useVirtualization = $derived(flatNodes.length > 100);
 
   const virtualizerStore = $derived.by(() => {
     if (!containerElement) return null;
@@ -136,27 +142,42 @@
         bind:this={containerElement}
         class="max-h-[70vh] overflow-y-auto"
       >
-        {#if flatNodes.length > 0 && virtualizerStore}
-          {@const v = $virtualizerStore}
-          {#if v}
-            <div
-              style="height: {v.getTotalSize()}px; width: 100%; position: relative;"
-              class="p-2"
-            >
-              {#each v.getVirtualItems() as virtualItem (virtualItem.key)}
-                {@const flatNode = flatNodes[virtualItem.index]}
-                <div
-                  data-index={virtualItem.index}
-                  style="position: absolute; top: 0; left: 0; width: 100%; transform: translateY({virtualItem.start}px);"
-                >
-                  <TreeNode
-                    node={flatNode.node}
-                    maxSize={flatNode.parentSize}
-                    depth={flatNode.depth}
-                    expanded={expandedPaths.has(flatNode.node.path)}
-                    onToggleExpand={() => toggleExpand(flatNode.node.path)}
-                  />
-                </div>
+        {#if flatNodes.length > 0}
+          {#if useVirtualization && virtualizerStore}
+            {@const v = $virtualizerStore}
+            {#if v}
+              <div
+                style="height: {v.getTotalSize()}px; width: 100%; position: relative;"
+                class="p-2"
+              >
+                {#each v.getVirtualItems() as virtualItem (virtualItem.key)}
+                  {@const flatNode = flatNodes[virtualItem.index]}
+                  <div
+                    data-index={virtualItem.index}
+                    style="position: absolute; top: 0; left: 0; width: 100%; transform: translateY({virtualItem.start}px);"
+                  >
+                    <TreeNode
+                      node={flatNode.node}
+                      maxSize={flatNode.parentSize}
+                      depth={flatNode.depth}
+                      expanded={expandedPaths.has(flatNode.node.path)}
+                      onToggleExpand={() => toggleExpand(flatNode.node.path)}
+                    />
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <!-- Direct rendering for smaller trees - still flattened for consistency -->
+            <div class="p-2">
+              {#each flatNodes as flatNode (flatNode.node.path)}
+                <TreeNode
+                  node={flatNode.node}
+                  maxSize={flatNode.parentSize}
+                  depth={flatNode.depth}
+                  expanded={expandedPaths.has(flatNode.node.path)}
+                  onToggleExpand={() => toggleExpand(flatNode.node.path)}
+                />
               {/each}
             </div>
           {/if}
