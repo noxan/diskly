@@ -146,3 +146,13 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run svelte-check
         run: bun run check
+
+  svelte-format:
+    name: Svelte Format
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.svelte == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run svelte format
+        run: bun run lint
