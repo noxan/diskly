@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765716604272,
+  "lastUpdate": 1765722011987,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -485,6 +485,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 2933813,
             "range": "± 25159",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "noxan@users.noreply.github.com",
+            "name": "Richard Stromer",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e5e35ff46ffe256cb97ec46a8ffa6d02a5795474",
+          "message": "Merge pull request #13 from noxan/codex/extend-ci-setup-for-svelte-checks",
+          "timestamp": "2025-12-14T15:17:35+01:00",
+          "tree_id": "5a8bb6cb2407b8794e11ca1f6ba527ea624aa7a2",
+          "url": "https://github.com/noxan/diskly/commit/e5e35ff46ffe256cb97ec46a8ffa6d02a5795474"
+        },
+        "date": 1765722011749,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 355637,
+            "range": "± 58907",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2653562,
+            "range": "± 52543",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7497450,
+            "range": "± 100320",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5747384,
+            "range": "± 112002",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 2949000,
+            "range": "± 32101",
             "unit": "ns/iter"
           }
         ]
