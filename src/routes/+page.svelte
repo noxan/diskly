@@ -11,7 +11,7 @@
   let error = $derived(store.error);
   let history = $derived(store.history);
   let hasHistory = $derived(history.length > 0);
-  let showHistoryPanel = $derived(!scanning && hasHistory);
+  let showHistoryPanel = $derived(!scanning && hasHistory && !data);
 
   const handleOpenHistory = (path: string) => scanStore.openHistory(path);
   const handleRescanHistory = async (path: string) => scanStore.rescan(path);
