@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765706274157,
+  "lastUpdate": 1765707180561,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -377,6 +377,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 2969891,
             "range": "± 22874",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "noxan@users.noreply.github.com",
+            "name": "Richard Stromer",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f375981f57396ed7542b90403187b9f3ae817a13",
+          "message": "Merge pull request #11 from noxan/cursor/build-and-dev-environment-2077",
+          "timestamp": "2025-12-14T11:10:25+01:00",
+          "tree_id": "223cb5d0fb823076facd44bd110a3e1be408152e",
+          "url": "https://github.com/noxan/diskly/commit/f375981f57396ed7542b90403187b9f3ae817a13"
+        },
+        "date": 1765707179708,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 357921,
+            "range": "± 54129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2699744,
+            "range": "± 55478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7487891,
+            "range": "± 256303",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5704470,
+            "range": "± 83326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 3038717,
+            "range": "± 22953",
             "unit": "ns/iter"
           }
         ]
