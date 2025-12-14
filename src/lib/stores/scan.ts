@@ -1,6 +1,6 @@
-import { writable } from "svelte/store";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { writable } from 'svelte/store';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface DirNode {
   name: string;
@@ -39,8 +39,8 @@ const initial: ScanState = {
   scanning: false,
   data: null,
   totalScanned: 0,
-  currentPath: "",
-  error: null,
+  currentPath: '',
+  error: null
 };
 
 function createScanStore() {
@@ -64,7 +64,7 @@ function createScanStore() {
       ...s,
       currentPath: event.payload.path,
       totalScanned: event.payload.total_scanned,
-      data: shouldUseNewNode(s.data, event.payload.node_data) ? event.payload.node_data : s.data,
+      data: shouldUseNewNode(s.data, event.payload.node_data) ? event.payload.node_data : s.data
     }));
 
   const handleComplete = (event: { payload: ScanCompleteEvent }) =>
@@ -73,7 +73,7 @@ function createScanStore() {
       scanning: false,
       data: event.payload.root,
       totalScanned: event.payload.total_scanned,
-      currentPath: "",
+      currentPath: ''
     }));
 
   const handleError = (event: { payload: ScanErrorEvent }) =>
@@ -81,15 +81,15 @@ function createScanStore() {
       ...s,
       scanning: false,
       error: event.payload.message,
-      currentPath: "",
+      currentPath: ''
     }));
 
   const setupListeners = async () => {
     await cleanup();
     listeners = [
-      await listen("scan:directory_complete", handleProgress),
-      await listen("scan:complete", handleComplete),
-      await listen("scan:error", handleError),
+      await listen('scan:directory_complete', handleProgress),
+      await listen('scan:complete', handleComplete),
+      await listen('scan:error', handleError)
     ];
   };
 
@@ -119,23 +119,23 @@ function createScanStore() {
       set({ ...initial, scanning: true, currentPath: path });
       await setupListeners();
       try {
-        await invoke("scan_directory", { path });
+        await invoke('scan_directory', { path });
       } catch (err) {
         update((s) => ({ ...s, scanning: false, error: String(err) }));
       }
     },
     async cancelScan() {
       try {
-        await invoke("cancel_scan");
+        await invoke('cancel_scan');
       } catch (err) {
-        console.error("Failed to cancel scan:", err);
+        console.error('Failed to cancel scan:', err);
       }
       set(initial);
     },
     removeNode(path: string) {
       update((s) => ({ ...s, data: removeNode(s.data, path) }));
     },
-    reset: () => set(initial),
+    reset: () => set(initial)
   };
 }
 
