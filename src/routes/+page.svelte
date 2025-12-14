@@ -27,21 +27,15 @@
     <div class="space-y-6">
       {#if scanning}
         <Progress />
-        <div class="pt-16">
-          <div class="text-center text-gray-400 dark:text-gray-500">
-            <div
-              class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600 dark:border-gray-700 dark:border-t-blue-500"
-            ></div>
-            <p class="mt-3 text-sm">Scanning {store.currentPath}</p>
-          </div>
-        </div>
       {:else if error}
         <div class="max-w-4xl">
           <div
             class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20"
           >
             <div class="font-medium text-red-800 dark:text-red-300">Error</div>
-            <div class="mt-1 text-sm text-red-600 dark:text-red-400">{error}</div>
+            <div class="mt-1 text-sm text-red-600 dark:text-red-400">
+              {error}
+            </div>
           </div>
           <button
             onclick={() => scanStore.reset()}
