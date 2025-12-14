@@ -63,7 +63,7 @@ function createScanStore() {
 
   const addOrUpdateHistory = (
     history: ScanHistoryEntry[],
-    entry: ScanHistoryEntry,
+    entry: ScanHistoryEntry
   ): ScanHistoryEntry[] => {
     const filtered = history.filter((item) => item.path !== entry.path);
     return [entry, ...filtered];
@@ -94,8 +94,8 @@ function createScanStore() {
       history: addOrUpdateHistory(s.history, {
         path: event.payload.root.path,
         root: event.payload.root,
-        scannedAt: Date.now(),
-      }),
+        scannedAt: Date.now()
+      })
     }));
 
   const handleError = (event: { payload: ScanErrorEvent }) =>
@@ -139,7 +139,7 @@ function createScanStore() {
     update((s) => ({ ...initial, history: s.history, scanning: true, currentPath: path }));
     await setupListeners();
     try {
-      await invoke("scan_directory", { path });
+      await invoke('scan_directory', { path });
     } catch (err) {
       update((s) => ({ ...s, scanning: false, error: String(err) }));
     }
@@ -147,9 +147,9 @@ function createScanStore() {
 
   const cancelScan = async () => {
     try {
-      await invoke("cancel_scan");
+      await invoke('cancel_scan');
     } catch (err) {
-      console.error("Failed to cancel scan:", err);
+      console.error('Failed to cancel scan:', err);
     }
     update((s) => ({ ...initial, history: s.history }));
   };
@@ -173,13 +173,13 @@ function createScanStore() {
           data: match.root,
           error: null,
           currentPath: '',
-          totalScanned: match.root.size ?? s.totalScanned,
+          totalScanned: match.root.size ?? s.totalScanned
         };
       });
     },
     async rescan(path: string) {
       await startScan(path);
-    },
+    }
   };
 }
 
