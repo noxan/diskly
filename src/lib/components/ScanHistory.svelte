@@ -43,7 +43,7 @@
 
 {#if history.length > 0}
   <div class="h-full">
-    <h3 class="mb-3 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+    <h3 class="mb-2 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
       Recent
     </h3>
 
@@ -61,43 +61,32 @@
             }
           }}
         >
-          <div class="mb-1 flex items-start justify-between gap-2">
+          <div class="flex items-center justify-between gap-2">
             <div class="min-w-0 flex-1">
               <div
-                class="truncate font-medium text-gray-900 dark:text-gray-100"
+                class="truncate text-sm font-medium text-gray-900 dark:text-gray-100"
                 title={entry.root.name}
               >
                 {entry.root.name}
               </div>
-              <div
-                class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400"
-                title={entry.path}
-              >
-                {entry.path}
+              <div class="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <span>{formatSize(entry.root.size)}</span>
+                <span>·</span>
+                <span>{countItems(entry.root).toLocaleString()}</span>
+                <span>·</span>
+                <span>{formatDate(entry.scannedAt)}</span>
               </div>
             </div>
-            <div
-              class="flex flex-shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100"
+            <button
+              class="flex-shrink-0 cursor-pointer rounded p-2 text-gray-600 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+              onclick={(e) => {
+                e.stopPropagation();
+                onRescan?.(entry.path);
+              }}
+              aria-label="Rescan"
             >
-              <button
-                class="rounded p-1 text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  onRescan?.(entry.path);
-                }}
-                aria-label="Rescan"
-              >
-                <RefreshCw size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-            <span>{formatSize(entry.root.size)}</span>
-            <span>·</span>
-            <span>{countItems(entry.root).toLocaleString()} items</span>
-            <span>·</span>
-            <span>{formatDate(entry.scannedAt)}</span>
+              <RefreshCw size={12} />
+            </button>
           </div>
         </div>
       {/each}
