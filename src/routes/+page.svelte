@@ -2,6 +2,7 @@
   import Scanner from "$lib/components/Scanner.svelte";
   import Progress from "$lib/components/Progress.svelte";
   import TreeView from "$lib/components/TreeView.svelte";
+  import VolumeList from "$lib/components/VolumeList.svelte";
   import { scanStore } from "$lib/stores/scan";
 
   let store = $derived($scanStore);
@@ -21,7 +22,8 @@
       </div>
     </div>
   {:else if error}
-    <div class="max-w-4xl mx-auto p-6">
+    <div class="max-w-5xl mx-auto p-6 space-y-6">
+      <VolumeList />
       <div
         class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4"
       >
@@ -36,10 +38,18 @@
       </button>
     </div>
   {:else if data}
-    <TreeView />
+    <div class="max-w-5xl mx-auto p-6 space-y-6">
+      <VolumeList />
+      <TreeView />
+    </div>
   {:else}
     <div class="min-h-screen flex items-center justify-center">
-      <Scanner />
+      <div class="w-full max-w-5xl px-6 py-10 space-y-6">
+        <VolumeList />
+        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+          <Scanner />
+        </div>
+      </div>
     </div>
   {/if}
 </div>
