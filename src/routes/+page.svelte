@@ -19,8 +19,9 @@
 
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
   <div
-    class="max-w-6xl mx-auto p-6"
-    class={showHistoryPanel ? "lg:grid lg:grid-cols-[2fr,1fr] lg:gap-6" : ""}
+    class="mx-auto max-w-6xl p-6 {showHistoryPanel
+      ? 'lg:grid lg:grid-cols-[2fr,1fr] lg:gap-6'
+      : ''}"
   >
     <div class="space-y-6">
       {#if scanning}
