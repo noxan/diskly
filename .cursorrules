@@ -1,7 +1,8 @@
 # Cursor Rules for Diskly (Tauri + SvelteKit)
 
 ## Documentation
-- NEVER generate markdown documentation files (README.md, docs/, etc.) unless explicitly requested
+- NEVER generate markdown documentation files (docs/, etc.) unless explicitly requested
+- README.md updates are allowed but must be minimal - only update when necessary to keep it accurate
 - Prefer inline code comments for complex logic
 - Use JSDoc/TSDoc comments for public APIs when needed
 
