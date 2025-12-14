@@ -10,13 +10,20 @@
   let data = $derived(store.data);
   let error = $derived(store.error);
   let history = $derived(store.history);
+  let hasHistory = $derived(history.length > 0);
+  let showHistoryPanel = $derived(!scanning && hasHistory);
 
   const handleOpenHistory = (path: string) => scanStore.openHistory(path);
   const handleRescanHistory = async (path: string) => scanStore.rescan(path);
 </script>
 
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-  <div class="mx-auto max-w-6xl p-6 lg:grid lg:grid-cols-[2fr,1fr] lg:gap-6">
+  <div
+    class="mx-auto max-w-6xl p-6"
+    class:lg:grid={showHistoryPanel}
+    class:lg:grid-cols-[2fr,1fr]={showHistoryPanel}
+    class:lg:gap-6={showHistoryPanel}
+  >
     <div class="space-y-6">
       {#if scanning}
         <Progress />
@@ -52,8 +59,10 @@
       {/if}
     </div>
 
-    <div class="mt-6 lg:mt-0">
-      <ScanHistory {history} onOpen={handleOpenHistory} onRescan={handleRescanHistory} />
-    </div>
+    {#if showHistoryPanel}
+      <div class="mt-6 lg:mt-0">
+        <ScanHistory {history} onOpen={handleOpenHistory} onRescan={handleRescanHistory} />
+      </div>
+    {/if}
   </div>
 </div>

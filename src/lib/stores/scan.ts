@@ -24,6 +24,7 @@ interface ScanState {
   totalScanned: number;
   currentPath: string;
   error: string | null;
+  // Keep history alongside the active scan state so updates stay atomic when scans finish or reset.
   history: ScanHistoryEntry[];
 }
 
