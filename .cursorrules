@@ -1,0 +1,62 @@
+# Cursor Rules for Diskly (Tauri + SvelteKit)
+
+## Documentation
+- NEVER generate markdown documentation files (docs/, etc.) unless explicitly requested
+- README.md updates are allowed but must be minimal - only update when necessary to keep it accurate
+- Prefer inline code comments for complex logic
+- Use JSDoc/TSDoc comments for public APIs when needed
+
+## Package Management
+- ALWAYS use `bun` for frontend package management, NEVER `npm` or `yarn`
+- Use `bun add` for dependencies, `bun add -d` for dev dependencies
+- Svelte and SvelteKit packages should be in devDependencies (they're build-time only)
+- Use `bun install` instead of `npm install`
+
+## Code Quality
+- Be concise: minimal output and code changes only
+- Prioritize clean, readable code following DRY principles
+- Use small, focused diffs
+- Avoid hardcoding values - use config/variables instead
+- Prefer simple, idiomatic solutions for the tech stack
+
+## Rust (Tauri Backend)
+- Follow Rust idioms and best practices
+- Use proper error handling with `Result<T, E>` types
+- Prefer `?` operator for error propagation
+- Use `clippy` suggestions when appropriate
+- Keep Tauri commands focused and well-typed
+- Use `serde` for serialization/deserialization
+- Prefer async/await with `tokio` for I/O operations
+
+## Svelte (Frontend)
+- Use Svelte 5 runes ($state, $derived, $effect) instead of legacy reactivity
+- Keep components focused and composable
+- Use TypeScript strictly - avoid `any` types
+- Prefer SvelteKit conventions ($lib aliases, proper routing)
+- Use stores only when component props aren't sufficient
+- Leverage Tailwind CSS for styling (already configured)
+- Use proper TypeScript types for Tauri API calls
+
+## Tauri Integration
+- Use typed Tauri commands with proper error handling
+- Prefer Tauri plugins for native functionality
+- Handle async operations properly in frontend
+- Use proper error boundaries and user feedback
+
+## Testing & Development
+- Write tests for complex logic (Rust benches already exist)
+- Don't start dev servers unless explicitly requested
+- Fix linter errors before considering tasks complete
+- Run `svelte-check` and `cargo clippy` when making changes
+
+## Performance
+- Consider performance implications for file scanning operations
+- Use proper async patterns to avoid blocking UI
+- Leverage Rust's performance for heavy computations
+- Use Svelte's reactivity efficiently
+
+## File Organization
+- Keep Rust code in `src-tauri/src/`
+- Keep Svelte components in `src/lib/components/`
+- Keep stores in `src/lib/stores/`
+- Follow existing project structure patterns
