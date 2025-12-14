@@ -1,5 +1,7 @@
-use std::path::Path;
 use std::process::Command;
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use std::path::Path;
 
 #[tauri::command]
 pub async fn file_preview(_path: String) -> Result<(), String> {

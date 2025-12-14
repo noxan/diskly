@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirNode {
@@ -35,42 +33,45 @@ pub struct ScanError {
     pub message: String,
 }
 
+// Core scanner without Tauri dependencies
 #[derive(Clone)]
-pub struct Scanner {
-    app: AppHandle,
+pub struct ScannerCore {
     cancelled: Arc<AtomicBool>,
     total_scanned: Arc<AtomicU64>,
     inode_tracker: Arc<DashMap<(u64, u64), PathBuf>>,
     visited_dirs: Arc<DashSet<(u64, u64)>>,
-    last_progress_emit: Arc<Mutex<Instant>>,
 }
 
-impl Scanner {
-    const PROGRESS_THROTTLE_MS: u64 = 50;
-
-    pub fn new(app: AppHandle) -> Self {
+impl Default for ScannerCore {
+    fn default() -> Self {
         Self {
-            app,
             cancelled: Arc::new(AtomicBool::new(false)),
             total_scanned: Arc::new(AtomicU64::new(0)),
             inode_tracker: Arc::new(DashMap::new()),
             visited_dirs: Arc::new(DashSet::new()),
-            last_progress_emit: Arc::new(Mutex::new(Instant::now())),
         }
+    }
+}
+
+impl ScannerCore {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn cancel(&self) {
         self.cancelled.store(true, Ordering::SeqCst);
     }
 
-    pub fn scan_directory(&self, path: String) -> Result<(), String> {
-        let path_buf = PathBuf::from(&path);
+    pub fn get_total_scanned(&self) -> u64 {
+        self.total_scanned.load(Ordering::SeqCst)
+    }
 
-        if !path_buf.exists() {
+    pub fn scan_directory(&self, path: &Path) -> Result<DirNode, String> {
+        if !path.exists() {
             return Err("Path does not exist".to_string());
         }
 
-        if !path_buf.is_dir() {
+        if !path.is_dir() {
             return Err("Path is not a directory".to_string());
         }
 
@@ -80,26 +81,7 @@ impl Scanner {
         self.inode_tracker.clear();
         self.visited_dirs.clear();
 
-        // Start scan
-        match self.scan_recursive(&path_buf) {
-            Ok(root) => {
-                let total = self.total_scanned.load(Ordering::SeqCst);
-                let _ = self.app.emit(
-                    "scan:complete",
-                    ScanComplete {
-                        root,
-                        total_scanned: total,
-                    },
-                );
-                Ok(())
-            }
-            Err(e) => {
-                let _ = self
-                    .app
-                    .emit("scan:error", ScanError { message: e.clone() });
-                Err(e)
-            }
-        }
+        self.scan_recursive(path)
     }
 
     fn scan_recursive(&self, path: &Path) -> Result<DirNode, String> {
@@ -200,7 +182,7 @@ impl Scanner {
         // Calculate total size
         let total_size: u64 = children.iter().map(|c| c.size).sum();
 
-        let node = DirNode {
+        Ok(DirNode {
             name: path
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -210,35 +192,7 @@ impl Scanner {
             size: total_size,
             children,
             is_file: false,
-        };
-
-        // Emit directory complete event (throttled)
-        let should_emit = {
-            let mut last_emit = self
-                .last_progress_emit
-                .lock()
-                .expect("Progress emit lock poisoned");
-            if last_emit.elapsed() >= Duration::from_millis(Self::PROGRESS_THROTTLE_MS) {
-                *last_emit = Instant::now();
-                true
-            } else {
-                false
-            }
-        };
-
-        if should_emit {
-            let total = self.total_scanned.load(Ordering::SeqCst);
-            let _ = self.app.emit(
-                "scan:directory_complete",
-                ScanProgress {
-                    path: path.to_string_lossy().to_string(),
-                    node_data: node.clone(),
-                    total_scanned: total,
-                },
-            );
-        }
-
-        Ok(node)
+        })
     }
 
     #[cfg(unix)]
@@ -268,5 +222,202 @@ impl Scanner {
     #[cfg(not(unix))]
     fn get_file_size(&self, _path: &Path, metadata: &fs::Metadata) -> u64 {
         metadata.len()
+    }
+}
+
+// Tauri wrapper with event emission
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter};
+
+#[derive(Clone)]
+pub struct Scanner {
+    core: ScannerCore,
+    app: AppHandle,
+    last_progress_emit: Arc<Mutex<Instant>>,
+}
+
+impl Scanner {
+    const PROGRESS_THROTTLE_MS: u64 = 50;
+
+    pub fn new(app: AppHandle) -> Self {
+        Self {
+            core: ScannerCore::new(),
+            app,
+            last_progress_emit: Arc::new(Mutex::new(Instant::now())),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.core.cancel();
+    }
+
+    pub fn scan_directory(&self, path: String) -> Result<(), String> {
+        let path_buf = PathBuf::from(&path);
+
+        if !path_buf.exists() {
+            return Err("Path does not exist".to_string());
+        }
+
+        if !path_buf.is_dir() {
+            return Err("Path is not a directory".to_string());
+        }
+
+        // Reset state
+        self.core.cancelled.store(false, Ordering::SeqCst);
+        self.core.total_scanned.store(0, Ordering::SeqCst);
+        self.core.inode_tracker.clear();
+        self.core.visited_dirs.clear();
+
+        match self.scan_with_events(&path_buf) {
+            Ok(root) => {
+                let total = self.core.get_total_scanned();
+                let _ = self.app.emit(
+                    "scan:complete",
+                    ScanComplete {
+                        root,
+                        total_scanned: total,
+                    },
+                );
+                Ok(())
+            }
+            Err(e) => {
+                let _ = self
+                    .app
+                    .emit("scan:error", ScanError { message: e.clone() });
+                Err(e)
+            }
+        }
+    }
+
+    fn scan_with_events(&self, path: &Path) -> Result<DirNode, String> {
+        if self.core.cancelled.load(Ordering::SeqCst) {
+            return Err("Scan cancelled".to_string());
+        }
+
+        let metadata = match fs::metadata(path) {
+            Ok(m) => m,
+            Err(_) => {
+                return Ok(DirNode {
+                    name: path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    size: 0,
+                    children: vec![],
+                    is_file: false,
+                });
+            }
+        };
+
+        if !metadata.is_dir() {
+            let size = self.core.get_file_size(path, &metadata);
+            self.core.total_scanned.fetch_add(1, Ordering::SeqCst);
+
+            return Ok(DirNode {
+                name: path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                path: path.to_string_lossy().to_string(),
+                size,
+                children: vec![],
+                is_file: true,
+            });
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let dev = metadata.dev();
+            let ino = metadata.ino();
+            let key = (dev, ino);
+
+            if !self.core.visited_dirs.insert(key) {
+                return Ok(DirNode {
+                    name: path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    size: 0,
+                    children: vec![],
+                    is_file: false,
+                });
+            }
+        }
+
+        let entries: Vec<PathBuf> = match fs::read_dir(path) {
+            Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
+            Err(_) => {
+                return Ok(DirNode {
+                    name: path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    size: 0,
+                    children: vec![],
+                    is_file: false,
+                });
+            }
+        };
+
+        let children: Vec<DirNode> = entries
+            .par_iter()
+            .filter_map(|entry| {
+                if self.core.cancelled.load(Ordering::SeqCst) {
+                    return None;
+                }
+                self.scan_with_events(entry).ok()
+            })
+            .collect();
+
+        let total_size: u64 = children.iter().map(|c| c.size).sum();
+
+        let node = DirNode {
+            name: path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            path: path.to_string_lossy().to_string(),
+            size: total_size,
+            children,
+            is_file: false,
+        };
+
+        // Emit progress event (throttled)
+        let should_emit = {
+            let mut last_emit = self
+                .last_progress_emit
+                .lock()
+                .expect("Progress emit lock poisoned");
+            if last_emit.elapsed() >= Duration::from_millis(Self::PROGRESS_THROTTLE_MS) {
+                *last_emit = Instant::now();
+                true
+            } else {
+                false
+            }
+        };
+
+        if should_emit {
+            let total = self.core.get_total_scanned();
+            let _ = self.app.emit(
+                "scan:directory_complete",
+                ScanProgress {
+                    path: path.to_string_lossy().to_string(),
+                    node_data: node.clone(),
+                    total_scanned: total,
+                },
+            );
+        }
+
+        Ok(node)
     }
 }
