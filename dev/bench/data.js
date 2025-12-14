@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765707180561,
+  "lastUpdate": 1765716604272,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -431,6 +431,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 3038717,
             "range": "± 22953",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "noxan@users.noreply.github.com",
+            "name": "Richard Stromer",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "11ff075783a31ad39d8da831fa50a93d499c236b",
+          "message": "Merge pull request #12 from noxan/codex/fix-svelte-config-file-extension",
+          "timestamp": "2025-12-14T13:47:33+01:00",
+          "tree_id": "a3f8fee61cbef27b661fa31eea5e30c74a3b6bbc",
+          "url": "https://github.com/noxan/diskly/commit/11ff075783a31ad39d8da831fa50a93d499c236b"
+        },
+        "date": 1765716604003,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 345306,
+            "range": "± 10784",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2641623,
+            "range": "± 72523",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7450463,
+            "range": "± 111706",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5730322,
+            "range": "± 104569",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 2933813,
+            "range": "± 25159",
             "unit": "ns/iter"
           }
         ]
