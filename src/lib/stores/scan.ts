@@ -12,12 +12,20 @@ export interface DirNode {
   seq?: number;
 }
 
+export interface ScanHistoryEntry {
+  path: string;
+  root: DirNode;
+  scannedAt: number;
+}
+
 interface ScanState {
   scanning: boolean;
   data: DirNode | null;
   totalScanned: number;
   currentPath: string;
   error: string | null;
+  // Keep history alongside the active scan state so updates stay atomic when scans finish or reset.
+  history: ScanHistoryEntry[];
 }
 
 type ScanProgressEvent = {
@@ -40,17 +48,26 @@ const initial: ScanState = {
   data: null,
   totalScanned: 0,
   currentPath: '',
-  error: null
+  error: null,
+  history: []
 };
 
 function createScanStore() {
-  const { subscribe, set, update } = writable<ScanState>(initial);
+  const { subscribe, update } = writable<ScanState>(initial);
   let listeners: UnlistenFn[] = [];
 
   const cleanup = () => Promise.all(listeners.splice(0).map((fn) => fn()));
 
   const updateIfScanning = (updater: (state: ScanState) => ScanState) =>
     update((s) => (s.scanning ? updater(s) : s));
+
+  const addOrUpdateHistory = (
+    history: ScanHistoryEntry[],
+    entry: ScanHistoryEntry
+  ): ScanHistoryEntry[] => {
+    const filtered = history.filter((item) => item.path !== entry.path);
+    return [entry, ...filtered];
+  };
 
   const shouldUseNewNode = (existing: DirNode | null, incoming: DirNode): boolean => {
     if (!existing) return true;
@@ -73,7 +90,12 @@ function createScanStore() {
       scanning: false,
       data: event.payload.root,
       totalScanned: event.payload.total_scanned,
-      currentPath: ''
+      currentPath: '',
+      history: addOrUpdateHistory(s.history, {
+        path: event.payload.root.path,
+        root: event.payload.root,
+        scannedAt: Date.now()
+      })
     }));
 
   const handleError = (event: { payload: ScanErrorEvent }) =>
@@ -113,29 +135,51 @@ function createScanStore() {
     return root;
   };
 
+  const startScan = async (path: string) => {
+    update((s) => ({ ...initial, history: s.history, scanning: true, currentPath: path }));
+    await setupListeners();
+    try {
+      await invoke('scan_directory', { path });
+    } catch (err) {
+      update((s) => ({ ...s, scanning: false, error: String(err) }));
+    }
+  };
+
+  const cancelScan = async () => {
+    try {
+      await invoke('cancel_scan');
+    } catch (err) {
+      console.error('Failed to cancel scan:', err);
+    }
+    update((s) => ({ ...initial, history: s.history }));
+  };
+
   return {
     subscribe,
-    async startScan(path: string) {
-      set({ ...initial, scanning: true, currentPath: path });
-      await setupListeners();
-      try {
-        await invoke('scan_directory', { path });
-      } catch (err) {
-        update((s) => ({ ...s, scanning: false, error: String(err) }));
-      }
-    },
-    async cancelScan() {
-      try {
-        await invoke('cancel_scan');
-      } catch (err) {
-        console.error('Failed to cancel scan:', err);
-      }
-      set(initial);
-    },
+    startScan,
+    cancelScan,
     removeNode(path: string) {
       update((s) => ({ ...s, data: removeNode(s.data, path) }));
     },
-    reset: () => set(initial)
+    reset: () => update((s) => ({ ...initial, history: s.history })),
+    openHistory(path: string) {
+      update((s) => {
+        if (s.scanning) return s;
+        const match = s.history.find((entry) => entry.path === path);
+        if (!match) return s;
+
+        return {
+          ...s,
+          data: match.root,
+          error: null,
+          currentPath: '',
+          totalScanned: match.root.size ?? s.totalScanned
+        };
+      });
+    },
+    async rescan(path: string) {
+      await startScan(path);
+    }
   };
 }
 
