@@ -11,6 +11,7 @@ pub struct DirNode {
     pub name: String,
     pub path: String,
     pub size: u64,
+    pub item_count: u64,
     pub children: Vec<DirNode>,
     pub is_file: bool,
 }
@@ -101,6 +102,7 @@ impl ScannerCore {
                         .to_string(),
                     path: path.to_string_lossy().to_string(),
                     size: 0,
+                    item_count: 0,
                     children: vec![],
                     is_file: false,
                 });
@@ -120,6 +122,7 @@ impl ScannerCore {
                     .to_string(),
                 path: path.to_string_lossy().to_string(),
                 size,
+                item_count: 1,
                 children: vec![],
                 is_file: true,
             });
@@ -143,6 +146,7 @@ impl ScannerCore {
                         .to_string(),
                     path: path.to_string_lossy().to_string(),
                     size: 0,
+                    item_count: 0,
                     children: vec![],
                     is_file: false,
                 });
@@ -162,6 +166,7 @@ impl ScannerCore {
                         .to_string(),
                     path: path.to_string_lossy().to_string(),
                     size: 0,
+                    item_count: 0,
                     children: vec![],
                     is_file: false,
                 });
@@ -179,8 +184,9 @@ impl ScannerCore {
             })
             .collect();
 
-        // Calculate total size
+        // Calculate total size and item count
         let total_size: u64 = children.iter().map(|c| c.size).sum();
+        let total_items: u64 = children.iter().map(|c| c.item_count).sum();
 
         Ok(DirNode {
             name: path
@@ -190,6 +196,7 @@ impl ScannerCore {
                 .to_string(),
             path: path.to_string_lossy().to_string(),
             size: total_size,
+            item_count: total_items,
             children,
             is_file: false,
         })
@@ -306,6 +313,7 @@ impl Scanner {
                         .to_string(),
                     path: path.to_string_lossy().to_string(),
                     size: 0,
+                    item_count: 0,
                     children: vec![],
                     is_file: false,
                 });
@@ -324,6 +332,7 @@ impl Scanner {
                     .to_string(),
                 path: path.to_string_lossy().to_string(),
                 size,
+                item_count: 1,
                 children: vec![],
                 is_file: true,
             });
@@ -345,6 +354,7 @@ impl Scanner {
                         .to_string(),
                     path: path.to_string_lossy().to_string(),
                     size: 0,
+                    item_count: 0,
                     children: vec![],
                     is_file: false,
                 });
@@ -362,6 +372,7 @@ impl Scanner {
                         .to_string(),
                     path: path.to_string_lossy().to_string(),
                     size: 0,
+                    item_count: 0,
                     children: vec![],
                     is_file: false,
                 });
@@ -379,6 +390,7 @@ impl Scanner {
             .collect();
 
         let total_size: u64 = children.iter().map(|c| c.size).sum();
+        let total_items: u64 = children.iter().map(|c| c.item_count).sum();
 
         let node = DirNode {
             name: path
@@ -388,6 +400,7 @@ impl Scanner {
                 .to_string(),
             path: path.to_string_lossy().to_string(),
             size: total_size,
+            item_count: total_items,
             children,
             is_file: false,
         };

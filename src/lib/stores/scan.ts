@@ -6,6 +6,7 @@ export interface DirNode {
   name: string;
   path: string;
   size: number;
+  item_count: number;
   children: DirNode[];
   is_file: boolean;
   updatedAt?: number;

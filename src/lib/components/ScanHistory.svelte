@@ -33,11 +33,6 @@
     });
   };
 
-  const countItems = (node: ScanHistoryEntry['root']): number => {
-    if (node.is_file) return 1;
-    return 1 + (node.children?.reduce((sum, child) => sum + countItems(child), 0) ?? 0);
-  };
-
   const orderedHistory = () => [...history].sort((a, b) => b.scannedAt - a.scannedAt);
 </script>
 
@@ -77,7 +72,7 @@
               <div class="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                 <span>{formatSize(entry.root.size)}</span>
                 <span>·</span>
-                <span>{countItems(entry.root).toLocaleString()}</span>
+                <span>{entry.root.item_count.toLocaleString()}</span>
                 <span>·</span>
                 <span>{formatDate(entry.scannedAt)}</span>
               </div>

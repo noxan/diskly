@@ -14,17 +14,6 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  function countItems(node: DirNode): number {
-    if (node.is_file) return 1;
-    let count = 1;
-    if (node.children) {
-      for (const child of node.children) {
-        count += countItems(child);
-      }
-    }
-    return count;
-  }
-
   function newScan(): void {
     scanStore.reset();
   }
@@ -51,7 +40,7 @@
 
       <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
         <span>Total Size: <strong>{formatSize(data.size)}</strong></span>
-        <span>Items: <strong>{countItems(data).toLocaleString()}</strong></span>
+        <span>Items: <strong>{data.item_count.toLocaleString()}</strong></span>
       </div>
     </div>
 
