@@ -43,6 +43,8 @@ type ScanErrorEvent = {
   message: string;
 };
 
+const MAX_HISTORY_ENTRIES = 5;
+
 const initial: ScanState = {
   scanning: false,
   data: null,
@@ -66,7 +68,7 @@ function createScanStore() {
     entry: ScanHistoryEntry
   ): ScanHistoryEntry[] => {
     const filtered = history.filter((item) => item.path !== entry.path);
-    return [entry, ...filtered];
+    return [entry, ...filtered].slice(0, MAX_HISTORY_ENTRIES);
   };
 
   const handleProgress = (event: { payload: ScanProgressEvent }) =>
