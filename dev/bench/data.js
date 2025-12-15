@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765794217698,
+  "lastUpdate": 1765796866011,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -863,6 +863,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 2989976,
             "range": "± 20709",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "richard@stromer.org",
+            "name": "Richard",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "richard@stromer.org",
+            "name": "Richard",
+            "username": "noxan"
+          },
+          "distinct": true,
+          "id": "8e0092cb53118072596a8c981bfba12126fbaec4",
+          "message": "Merge branch 'codex/add-volume-statistics-to-main-page-a16vvb'",
+          "timestamp": "2025-12-15T12:05:08+01:00",
+          "tree_id": "2440dc10142209d18bbe3777e84b0be9ec16df21",
+          "url": "https://github.com/noxan/diskly/commit/8e0092cb53118072596a8c981bfba12126fbaec4"
+        },
+        "date": 1765796865117,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 354448,
+            "range": "± 12474",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2702783,
+            "range": "± 63703",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 8056542,
+            "range": "± 388146",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5943593,
+            "range": "± 140541",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 2980579,
+            "range": "± 30197",
             "unit": "ns/iter"
           }
         ]
