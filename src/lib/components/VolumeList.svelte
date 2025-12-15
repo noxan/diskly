@@ -47,7 +47,7 @@
     </button>
   </div>
 
-  <div class="p-3.5">
+  <div class="p-3">
     {#if loading}
       <div class="text-sm text-gray-500 dark:text-gray-400">Loading volumes...</div>
     {:else if error}
@@ -55,48 +55,39 @@
     {:else if volumes.length === 0}
       <div class="text-sm text-gray-500 dark:text-gray-400">No volumes detected.</div>
     {:else}
-      <div class="grid gap-2.5 md:grid-cols-2">
+      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3 auto-rows-fr">
         {#each volumes as volume (volume.mountPoint)}
-          <div class="p-2.5 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40">
-            <div class="flex items-start justify-between gap-2.5">
-              <div>
-                <div class="text-sm font-semibold text-gray-800 dark:text-gray-100" title={volume.mountPoint}>
+          <div class="p-2.5 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40 flex flex-col gap-2">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0 space-y-1">
+                <div class="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate" title={volume.mountPoint}>
                   {volume.name || volume.mountPoint}
                 </div>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 font-mono leading-tight">
+                <div class="text-[11px] text-gray-500 dark:text-gray-400 font-mono leading-tight truncate" title={volume.mountPoint}>
                   {volume.mountPoint}
                 </div>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wide">
-                  {volume.fileSystem}
-                </div>
+                <div class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{volume.fileSystem}</div>
               </div>
               {#if volume.isRemovable}
-                <span class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 rounded">Removable</span>
+                <span class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 rounded self-start">
+                  Removable
+                </span>
               {/if}
             </div>
 
             {#if volume.totalSpace > 0}
               {#key volume.mountPoint}
-                <div class="mt-2.5">
+                <div class="space-y-1.5">
                   <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
-                    <span>
-                      Used {formatSize(volume.totalSpace - volume.availableSpace)}
-                      ({usagePercent(volume.totalSpace - volume.availableSpace, volume.totalSpace).toFixed(1)}%)
+                    <span class="truncate">
+                      Used {formatSize(volume.totalSpace - volume.availableSpace)} ({usagePercent(volume.totalSpace - volume.availableSpace, volume.totalSpace).toFixed(1)}%)
                     </span>
-                    <span>Total {formatSize(volume.totalSpace)}</span>
+                    <span class="shrink-0">Total {formatSize(volume.totalSpace)}</span>
                   </div>
-                  <div class="w-full h-1.5 mt-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      class="h-full bg-blue-600 dark:bg-blue-500"
-                      style={`width: ${usagePercent(
-                        volume.totalSpace - volume.availableSpace,
-                        volume.totalSpace
-                      ).toFixed(1)}%`}
-                    ></div>
+                  <div class="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-600 dark:bg-blue-500" style={`width: ${usagePercent(volume.totalSpace - volume.availableSpace, volume.totalSpace).toFixed(1)}%`}></div>
                   </div>
-                  <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
-                    Free {formatSize(volume.availableSpace)}
-                  </div>
+                  <div class="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">Free {formatSize(volume.availableSpace)}</div>
                 </div>
               {/key}
             {/if}
