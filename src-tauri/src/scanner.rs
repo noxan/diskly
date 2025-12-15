@@ -221,7 +221,13 @@ impl ScannerCore {
         let total_size: u64 = children.iter().map(|c| c.size).sum();
         let total_items: u64 = children.iter().map(|c| c.item_count).sum();
 
-        Ok(DirNode::dir(name, path_str, total_size, total_items, children))
+        Ok(DirNode::dir(
+            name,
+            path_str,
+            total_size,
+            total_items,
+            children,
+        ))
     }
 
     #[cfg(unix)]
