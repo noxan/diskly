@@ -45,10 +45,10 @@
   {:else}
     <div class="min-h-screen flex items-center justify-center">
       <div class="w-full max-w-5xl px-6 py-10 space-y-6">
-        <VolumeList />
         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
           <Scanner />
         </div>
+        <VolumeList />
       </div>
     </div>
   {/if}
