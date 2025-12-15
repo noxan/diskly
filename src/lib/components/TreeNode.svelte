@@ -27,9 +27,9 @@
     return max > 0 ? (size / max) * 100 : 0;
   }
 
-  function sortedChildren(children: DirNode[]): DirNode[] {
-    return [...children].sort((a, b) => b.size - a.size);
-  }
+  const sortedChildren = $derived(
+    node.children ? [...node.children].sort((a, b) => b.size - a.size) : []
+  );
 
   function toggleExpand(): void {
     if (!node.is_file) {
@@ -149,9 +149,9 @@
     </div>
   </div>
 
-  {#if expanded && !node.is_file && node.children && node.children.length > 0}
+  {#if expanded && !node.is_file && sortedChildren.length > 0}
     <div class="ml-6 border-l border-gray-200 pl-2 dark:border-gray-700">
-      {#each sortedChildren(node.children) as child (child.path)}
+      {#each sortedChildren as child (child.path)}
         <TreeNode node={child} maxSize={node.size} />
       {/each}
     </div>

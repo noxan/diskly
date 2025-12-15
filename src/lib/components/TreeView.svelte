@@ -5,6 +5,9 @@
   let store = $derived($scanStore);
   let data = $derived(store.data);
   let scanning = $derived(store.scanning);
+  let sortedChildren = $derived(
+    data?.children ? [...data.children].sort((a, b) => b.size - a.size) : []
+  );
 
   function formatSize(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -48,9 +51,9 @@
       class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
     >
       <div class="max-h-[70vh] overflow-y-auto">
-        {#if data.children && data.children.length > 0}
+        {#if sortedChildren.length > 0}
           <div class="p-2">
-            {#each data.children.sort((a, b) => b.size - a.size) as child (child.path)}
+            {#each sortedChildren as child (child.path)}
               <TreeNode node={child} maxSize={data.size} />
             {/each}
           </div>
