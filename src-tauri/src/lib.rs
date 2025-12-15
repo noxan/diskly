@@ -1,5 +1,6 @@
 pub mod file_ops;
 pub mod scanner;
+pub mod volumes;
 
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
@@ -75,6 +76,7 @@ pub fn run() {
             cancel_scan,
             get_home_dir,
             pick_directory,
+            volumes::list_volumes,
             file_ops::file_preview,
             file_ops::file_open,
             file_ops::file_delete,

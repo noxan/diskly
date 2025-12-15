@@ -1,14 +1,21 @@
-name: CI
+name: Tauri CI
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/tauri-ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/tauri-ci.yml'
 
 permissions:
-  contents: read
+  contents: write
   actions: write
+  deployments: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,7 +47,7 @@ jobs:
           components: clippy
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: './src-tauri -> target'
       - name: Run clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 
@@ -57,16 +64,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: './src-tauri -> target'
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
 
   bench:
     name: Benchmark
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      deployments: write
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -77,17 +81,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: './src-tauri -> target'
       - name: Run benchmarks
         run: cargo bench --manifest-path src-tauri/Cargo.toml --no-fail-fast --bench scanner_bench -- --output-format bencher | tee output.txt
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         if: github.ref == 'refs/heads/main'
         with:
-          tool: "cargo"
+          tool: 'cargo'
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: "200%"
+          alert-threshold: '200%'
           comment-on-alert: true
           fail-on-alert: true

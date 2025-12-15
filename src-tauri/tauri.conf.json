@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "diskly",
+        "title": "Diskly",
         "width": 800,
         "height": 600
       }
@@ -24,6 +24,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "26.0",
+      "files": {
+        "Resources/Assets.car": "resources/Assets.car"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
