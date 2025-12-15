@@ -19,7 +19,6 @@ pub struct DirNode {
 #[derive(Debug, Clone, Serialize)]
 pub struct ScanProgress {
     pub path: String,
-    pub node_data: DirNode,
     pub total_scanned: u64,
 }
 
@@ -425,7 +424,6 @@ impl Scanner {
                 "scan:directory_complete",
                 ScanProgress {
                     path: path.to_string_lossy().to_string(),
-                    node_data: node.clone(),
                     total_scanned: total,
                 },
             );

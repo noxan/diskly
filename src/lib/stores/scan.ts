@@ -31,7 +31,6 @@ interface ScanState {
 
 type ScanProgressEvent = {
   path: string;
-  node_data: DirNode;
   total_scanned: number;
 };
 
@@ -70,19 +69,11 @@ function createScanStore() {
     return [entry, ...filtered];
   };
 
-  const shouldUseNewNode = (existing: DirNode | null, incoming: DirNode): boolean => {
-    if (!existing) return true;
-    if ((incoming.updatedAt ?? 0) > (existing.updatedAt ?? 0)) return true;
-    if ((incoming.seq ?? 0) > (existing.seq ?? 0)) return true;
-    return false;
-  };
-
   const handleProgress = (event: { payload: ScanProgressEvent }) =>
     updateIfScanning((s) => ({
       ...s,
       currentPath: event.payload.path,
-      totalScanned: event.payload.total_scanned,
-      data: shouldUseNewNode(s.data, event.payload.node_data) ? event.payload.node_data : s.data
+      totalScanned: event.payload.total_scanned
     }));
 
   const handleComplete = (event: { payload: ScanCompleteEvent }) =>
