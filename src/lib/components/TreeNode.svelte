@@ -3,7 +3,16 @@
   import type { DirNode } from '../stores/scan';
   import { scanStore } from '../stores/scan';
   import { invoke } from '@tauri-apps/api/core';
-  import { ChevronRight, ChevronDown, File, Folder, Eye, FolderOpen, Trash2 } from 'lucide-svelte';
+  import {
+    ChevronRight,
+    ChevronDown,
+    File,
+    Folder,
+    Eye,
+    FolderOpen,
+    Trash2,
+    Loader2
+  } from 'lucide-svelte';
 
   interface Props {
     node: DirNode;
@@ -14,6 +23,9 @@
 
   let expanded = $state(false);
   let showActions = $state(false);
+  let loadingChildren = $state(false);
+  // Local children state for lazy-loaded children
+  let localChildren = $state<DirNode[] | null>(null);
 
   function formatSize(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -27,13 +39,30 @@
     return max > 0 ? (size / max) * 100 : 0;
   }
 
-  function sortedChildren(children: DirNode[]): DirNode[] {
-    return [...children].sort((a, b) => b.size - a.size);
-  }
+  // Use local children if loaded, otherwise use node.children
+  const effectiveChildren = $derived(localChildren ?? node.children ?? []);
+  const sortedChildren = $derived([...effectiveChildren].sort((a, b) => b.size - a.size));
 
-  function toggleExpand(): void {
-    if (!node.is_file) {
-      expanded = !expanded;
+  // Check if we need to lazy load (has_children but no children array)
+  const needsLazyLoad = $derived(node.has_children && effectiveChildren.length === 0);
+
+  async function toggleExpand(): Promise<void> {
+    if (node.is_file) return;
+
+    const wasExpanded = expanded;
+    expanded = !expanded;
+
+    // If expanding and we need to lazy load children
+    if (!wasExpanded && needsLazyLoad && !loadingChildren) {
+      loadingChildren = true;
+      try {
+        const children = await invoke<DirNode[]>('load_children', { path: node.path });
+        localChildren = children;
+      } catch (err) {
+        console.error('Failed to load children:', err);
+      } finally {
+        loadingChildren = false;
+      }
     }
   }
 
@@ -81,7 +110,9 @@
   >
     {#if !node.is_file}
       <span class="w-4 flex-shrink-0 text-gray-400 dark:text-gray-500">
-        {#if expanded}
+        {#if loadingChildren}
+          <Loader2 size={16} class="animate-spin" />
+        {:else if expanded}
           <ChevronDown size={16} />
         {:else}
           <ChevronRight size={16} />
@@ -149,11 +180,17 @@
     </div>
   </div>
 
-  {#if expanded && !node.is_file && node.children && node.children.length > 0}
+  {#if expanded && !node.is_file}
     <div class="ml-6 border-l border-gray-200 pl-2 dark:border-gray-700">
-      {#each sortedChildren(node.children) as child (child.path)}
-        <TreeNode node={child} maxSize={node.size} />
-      {/each}
+      {#if loadingChildren}
+        <div class="px-3 py-2 text-sm text-gray-400">Loading...</div>
+      {:else if sortedChildren.length > 0}
+        {#each sortedChildren as child (child.path)}
+          <TreeNode node={child} maxSize={node.size} />
+        {/each}
+      {:else if node.has_children}
+        <div class="px-3 py-2 text-sm text-gray-400">Loading...</div>
+      {/if}
     </div>
   {/if}
 </div>

@@ -6,8 +6,11 @@ export interface DirNode {
   name: string;
   path: string;
   size: number;
+  item_count: number;
   children: DirNode[];
   is_file: boolean;
+  /** True if this directory has children that weren't loaded yet (lazy loading) */
+  has_children?: boolean;
   updatedAt?: number;
   seq?: number;
 }
@@ -30,7 +33,6 @@ interface ScanState {
 
 type ScanProgressEvent = {
   path: string;
-  node_data: DirNode;
   total_scanned: number;
 };
 
@@ -42,6 +44,8 @@ type ScanCompleteEvent = {
 type ScanErrorEvent = {
   message: string;
 };
+
+const MAX_HISTORY_ENTRIES = 5;
 
 const initial: ScanState = {
   scanning: false,
@@ -66,22 +70,14 @@ function createScanStore() {
     entry: ScanHistoryEntry
   ): ScanHistoryEntry[] => {
     const filtered = history.filter((item) => item.path !== entry.path);
-    return [entry, ...filtered];
-  };
-
-  const shouldUseNewNode = (existing: DirNode | null, incoming: DirNode): boolean => {
-    if (!existing) return true;
-    if ((incoming.updatedAt ?? 0) > (existing.updatedAt ?? 0)) return true;
-    if ((incoming.seq ?? 0) > (existing.seq ?? 0)) return true;
-    return false;
+    return [entry, ...filtered].slice(0, MAX_HISTORY_ENTRIES);
   };
 
   const handleProgress = (event: { payload: ScanProgressEvent }) =>
     updateIfScanning((s) => ({
       ...s,
       currentPath: event.payload.path,
-      totalScanned: event.payload.total_scanned,
-      data: shouldUseNewNode(s.data, event.payload.node_data) ? event.payload.node_data : s.data
+      totalScanned: event.payload.total_scanned
     }));
 
   const handleComplete = (event: { payload: ScanCompleteEvent }) =>

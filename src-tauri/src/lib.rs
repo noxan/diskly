@@ -2,7 +2,8 @@ pub mod file_ops;
 pub mod scanner;
 pub mod volumes;
 
-use scanner::Scanner;
+use scanner::{DirNode, Scanner};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, State};
 
@@ -59,6 +60,14 @@ async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
     Ok(result.map(|p| p.to_string()))
 }
 
+#[tauri::command]
+async fn load_children(path: String) -> Result<Vec<DirNode>, String> {
+    let path_buf = PathBuf::from(&path);
+    tokio::task::spawn_blocking(move || scanner::load_children(&path_buf))
+        .await
+        .map_err(|e| format!("Task failed: {}", e))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -76,6 +85,7 @@ pub fn run() {
             cancel_scan,
             get_home_dir,
             pick_directory,
+            load_children,
             volumes::list_volumes,
             file_ops::file_preview,
             file_ops::file_open,

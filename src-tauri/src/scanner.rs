@@ -11,14 +11,86 @@ pub struct DirNode {
     pub name: String,
     pub path: String,
     pub size: u64,
+    pub item_count: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<DirNode>,
     pub is_file: bool,
+    /// True if this directory has children that weren't serialized (lazy loading)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_children: bool,
+}
+
+/// Depth limit for lazy loading responses
+pub const LAZY_LOAD_DEPTH: usize = 2;
+
+impl DirNode {
+    /// Create a new file node
+    fn file(name: String, path: String, size: u64) -> Self {
+        Self {
+            name,
+            path,
+            size,
+            item_count: 1,
+            children: vec![],
+            is_file: true,
+            has_children: false,
+        }
+    }
+
+    /// Create a new directory node
+    fn dir(name: String, path: String, size: u64, item_count: u64, children: Vec<DirNode>) -> Self {
+        Self {
+            name,
+            path,
+            size,
+            item_count,
+            children,
+            is_file: false,
+            has_children: false,
+        }
+    }
+
+    /// Create an empty/inaccessible directory node
+    fn empty_dir(name: String, path: String) -> Self {
+        Self {
+            name,
+            path,
+            size: 0,
+            item_count: 0,
+            children: vec![],
+            is_file: false,
+            has_children: false,
+        }
+    }
+
+    /// Truncate tree to max_depth levels, marking truncated nodes with has_children
+    pub fn truncate_to_depth(&mut self, max_depth: usize) {
+        self.truncate_recursive(0, max_depth);
+    }
+
+    fn truncate_recursive(&mut self, current_depth: usize, max_depth: usize) {
+        if self.is_file {
+            return;
+        }
+
+        if current_depth >= max_depth {
+            // At max depth - mark as having children if there are any, then clear
+            if !self.children.is_empty() {
+                self.has_children = true;
+                self.children.clear();
+            }
+        } else {
+            // Not at max depth yet - recurse into children
+            for child in &mut self.children {
+                child.truncate_recursive(current_depth + 1, max_depth);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ScanProgress {
     pub path: String,
-    pub node_data: DirNode,
     pub total_scanned: u64,
 }
 
@@ -89,21 +161,18 @@ impl ScannerCore {
             return Err("Scan cancelled".to_string());
         }
 
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let path_str = path.to_string_lossy().to_string();
+
         let metadata = match fs::metadata(path) {
             Ok(m) => m,
             Err(_) => {
                 // Skip on permission errors
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(DirNode::empty_dir(name, path_str));
             }
         };
 
@@ -111,18 +180,7 @@ impl ScannerCore {
         if !metadata.is_dir() {
             let size = self.get_file_size(path, &metadata);
             self.total_scanned.fetch_add(1, Ordering::SeqCst);
-
-            return Ok(DirNode {
-                name: path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                path: path.to_string_lossy().to_string(),
-                size,
-                children: vec![],
-                is_file: true,
-            });
+            return Ok(DirNode::file(name, path_str, size));
         }
 
         // Check for symlink cycles (directories only)
@@ -135,17 +193,7 @@ impl ScannerCore {
 
             if !self.visited_dirs.insert(key) {
                 // Already visited this directory, skip to avoid cycle
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(DirNode::empty_dir(name, path_str));
             }
         }
 
@@ -154,17 +202,7 @@ impl ScannerCore {
             Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
             Err(_) => {
                 // Skip on permission errors
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(DirNode::empty_dir(name, path_str));
             }
         };
 
@@ -179,20 +217,17 @@ impl ScannerCore {
             })
             .collect();
 
-        // Calculate total size
+        // Calculate total size and item count
         let total_size: u64 = children.iter().map(|c| c.size).sum();
+        let total_items: u64 = children.iter().map(|c| c.item_count).sum();
 
-        Ok(DirNode {
-            name: path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            path: path.to_string_lossy().to_string(),
-            size: total_size,
+        Ok(DirNode::dir(
+            name,
+            path_str,
+            total_size,
+            total_items,
             children,
-            is_file: false,
-        })
+        ))
     }
 
     #[cfg(unix)]
@@ -270,8 +305,10 @@ impl Scanner {
         self.core.visited_dirs.clear();
 
         match self.scan_with_events(&path_buf) {
-            Ok(root) => {
+            Ok(mut root) => {
                 let total = self.core.get_total_scanned();
+                // Truncate to 3 levels for initial load (lazy loading)
+                root.truncate_to_depth(3);
                 let _ = self.app.emit(
                     "scan:complete",
                     ScanComplete {
@@ -295,38 +332,24 @@ impl Scanner {
             return Err("Scan cancelled".to_string());
         }
 
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let path_str = path.to_string_lossy().to_string();
+
         let metadata = match fs::metadata(path) {
             Ok(m) => m,
             Err(_) => {
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(DirNode::empty_dir(name, path_str));
             }
         };
 
         if !metadata.is_dir() {
             let size = self.core.get_file_size(path, &metadata);
             self.core.total_scanned.fetch_add(1, Ordering::SeqCst);
-
-            return Ok(DirNode {
-                name: path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                path: path.to_string_lossy().to_string(),
-                size,
-                children: vec![],
-                is_file: true,
-            });
+            return Ok(DirNode::file(name, path_str, size));
         }
 
         #[cfg(unix)]
@@ -337,34 +360,14 @@ impl Scanner {
             let key = (dev, ino);
 
             if !self.core.visited_dirs.insert(key) {
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(DirNode::empty_dir(name, path_str));
             }
         }
 
         let entries: Vec<PathBuf> = match fs::read_dir(path) {
             Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
             Err(_) => {
-                return Ok(DirNode {
-                    name: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    path: path.to_string_lossy().to_string(),
-                    size: 0,
-                    children: vec![],
-                    is_file: false,
-                });
+                return Ok(DirNode::empty_dir(name, path_str));
             }
         };
 
@@ -379,18 +382,9 @@ impl Scanner {
             .collect();
 
         let total_size: u64 = children.iter().map(|c| c.size).sum();
+        let total_items: u64 = children.iter().map(|c| c.item_count).sum();
 
-        let node = DirNode {
-            name: path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            path: path.to_string_lossy().to_string(),
-            size: total_size,
-            children,
-            is_file: false,
-        };
+        let node = DirNode::dir(name, path_str, total_size, total_items, children);
 
         // Emit progress event (throttled)
         let should_emit = {
@@ -412,7 +406,6 @@ impl Scanner {
                 "scan:directory_complete",
                 ScanProgress {
                     path: path.to_string_lossy().to_string(),
-                    node_data: node.clone(),
                     total_scanned: total,
                 },
             );
@@ -420,4 +413,36 @@ impl Scanner {
 
         Ok(node)
     }
+}
+
+/// Load children for a directory (lazy loading).
+/// Returns direct children with their sizes already calculated,
+/// truncated to LAZY_LOAD_DEPTH levels.
+pub fn load_children(path: &Path) -> Result<Vec<DirNode>, String> {
+    if !path.exists() {
+        return Err("Path does not exist".to_string());
+    }
+
+    if !path.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+
+    let scanner = ScannerCore::new();
+
+    let entries: Vec<PathBuf> = match fs::read_dir(path) {
+        Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
+        Err(e) => return Err(format!("Cannot read directory: {}", e)),
+    };
+
+    let mut children: Vec<DirNode> = entries
+        .par_iter()
+        .filter_map(|entry| scanner.scan_recursive(entry).ok())
+        .collect();
+
+    // Truncate each child to LAZY_LOAD_DEPTH levels
+    for child in &mut children {
+        child.truncate_to_depth(LAZY_LOAD_DEPTH);
+    }
+
+    Ok(children)
 }

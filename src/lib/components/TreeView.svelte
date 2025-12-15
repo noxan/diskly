@@ -5,6 +5,9 @@
   let store = $derived($scanStore);
   let data = $derived(store.data);
   let scanning = $derived(store.scanning);
+  let sortedChildren = $derived(
+    data?.children ? [...data.children].sort((a, b) => b.size - a.size) : []
+  );
 
   function formatSize(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -12,17 +15,6 @@
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  function countItems(node: DirNode): number {
-    if (node.is_file) return 1;
-    let count = 1;
-    if (node.children) {
-      for (const child of node.children) {
-        count += countItems(child);
-      }
-    }
-    return count;
   }
 
   function newScan(): void {
@@ -51,7 +43,7 @@
 
       <div class="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
         <span>Total Size: <strong>{formatSize(data.size)}</strong></span>
-        <span>Items: <strong>{countItems(data).toLocaleString()}</strong></span>
+        <span>Items: <strong>{data.item_count.toLocaleString()}</strong></span>
       </div>
     </div>
 
@@ -59,9 +51,9 @@
       class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
     >
       <div class="max-h-[70vh] overflow-y-auto">
-        {#if data.children && data.children.length > 0}
+        {#if sortedChildren.length > 0}
           <div class="p-2">
-            {#each data.children.sort((a, b) => b.size - a.size) as child (child.path)}
+            {#each sortedChildren as child (child.path)}
               <TreeNode node={child} maxSize={data.size} />
             {/each}
           </div>
