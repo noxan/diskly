@@ -9,6 +9,8 @@ export interface DirNode {
   item_count: number;
   children: DirNode[];
   is_file: boolean;
+  /** True if this directory has children that weren't loaded yet (lazy loading) */
+  has_children?: boolean;
   updatedAt?: number;
   seq?: number;
 }
