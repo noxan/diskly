@@ -31,7 +31,7 @@
 </script>
 
 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+  <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 dark:border-gray-700">
     <div class="flex items-center gap-2 text-gray-800 dark:text-gray-100">
       <HardDrive class="w-5 h-5" />
       <span class="text-base font-medium">Volumes</span>
@@ -47,7 +47,7 @@
     </button>
   </div>
 
-  <div class="p-4">
+  <div class="p-3.5">
     {#if loading}
       <div class="text-sm text-gray-500 dark:text-gray-400">Loading volumes...</div>
     {:else if error}
@@ -55,15 +55,15 @@
     {:else if volumes.length === 0}
       <div class="text-sm text-gray-500 dark:text-gray-400">No volumes detected.</div>
     {:else}
-      <div class="grid gap-3 md:grid-cols-2">
+      <div class="grid gap-2.5 md:grid-cols-2">
         {#each volumes as volume (volume.mountPoint)}
-          <div class="p-3 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40">
-            <div class="flex items-start justify-between gap-3">
+          <div class="p-2.5 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40">
+            <div class="flex items-start justify-between gap-2.5">
               <div>
                 <div class="text-sm font-semibold text-gray-800 dark:text-gray-100" title={volume.mountPoint}>
                   {volume.name || volume.mountPoint}
                 </div>
-                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
+                <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 font-mono leading-tight">
                   {volume.mountPoint}
                 </div>
                 <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wide">
@@ -77,15 +77,15 @@
 
             {#if volume.totalSpace > 0}
               {#key volume.mountPoint}
-                <div class="mt-3">
-                  <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                <div class="mt-2.5">
+                  <div class="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
                     <span>
                       Used {formatSize(volume.totalSpace - volume.availableSpace)}
                       ({usagePercent(volume.totalSpace - volume.availableSpace, volume.totalSpace).toFixed(1)}%)
                     </span>
                     <span>Total {formatSize(volume.totalSpace)}</span>
                   </div>
-                  <div class="w-full h-1.5 mt-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div class="w-full h-1.5 mt-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div
                       class="h-full bg-blue-600 dark:bg-blue-500"
                       style={`width: ${usagePercent(
@@ -94,7 +94,7 @@
                       ).toFixed(1)}%`}
                     ></div>
                   </div>
-                  <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
                     Free {formatSize(volume.availableSpace)}
                   </div>
                 </div>
