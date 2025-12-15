@@ -2,4 +2,7 @@
   import '../app.css';
 </script>
 
-<slot />
+<div class="app-window">
+  <div class="titlebar-drag-region" data-tauri-drag-region="true"></div>
+  <slot />
+</div>

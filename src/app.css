@@ -6,3 +6,15 @@ body {
   margin: 0;
   padding: 0;
 }
+
+.app-window {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  height: 32px;
+  flex-shrink: 0;
+}
