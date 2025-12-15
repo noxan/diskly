@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { HardDrive, RefreshCcw } from "lucide-svelte";
-  import { volumeStore } from "../stores/volumes";
+  import { volumeStore } from "$lib/stores/volumes";
 
   let state = $derived($volumeStore);
   let volumes = $derived(state.volumes);
