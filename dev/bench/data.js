@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765792062760,
+  "lastUpdate": 1765794217698,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -809,6 +809,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 1751973,
             "range": "± 23384",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "noxan@users.noreply.github.com",
+            "name": "Richard Stromer",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "547aef820349a2db3623ace3d8d751378e34bf2f",
+          "message": "Merge pull request #19 from noxan/liquid-glass-icon\n\nLiquid glass icon",
+          "timestamp": "2025-12-15T11:21:13+01:00",
+          "tree_id": "44c9122e2104535f1a136e458e048f93ea73e8e6",
+          "url": "https://github.com/noxan/diskly/commit/547aef820349a2db3623ace3d8d751378e34bf2f"
+        },
+        "date": 1765794217414,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 357645,
+            "range": "± 38543",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2666631,
+            "range": "± 45956",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7493834,
+            "range": "± 92224",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5722860,
+            "range": "± 120801",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 2989976,
+            "range": "± 20709",
             "unit": "ns/iter"
           }
         ]
