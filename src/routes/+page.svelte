@@ -45,10 +45,12 @@
       {:else}
         <div class="flex min-h-[60vh] flex-col items-center justify-center gap-4">
           <Scanner />
-          <VolumeList />
-          {#if showHistoryPanel}
-            <ScanHistory {history} onOpen={handleOpenHistory} onRescan={handleRescanHistory} />
-          {/if}
+          <div class="w-full max-w-3xl space-y-3">
+            <VolumeList />
+            {#if showHistoryPanel}
+              <ScanHistory {history} onOpen={handleOpenHistory} onRescan={handleRescanHistory} />
+            {/if}
+          </div>
         </div>
       {/if}
     </div>
