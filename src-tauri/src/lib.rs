@@ -3,7 +3,7 @@ pub mod scanner;
 
 use scanner::Scanner;
 use std::sync::{Arc, Mutex};
-use sysinfo::{prelude::*, Disks};
+use sysinfo::Disks;
 use tauri::{AppHandle, Manager, State};
 
 struct AppState {
@@ -82,7 +82,7 @@ async fn list_volumes() -> Result<Vec<VolumeInfo>, String> {
             mount_point: disk.mount_point().to_string_lossy().to_string(),
             total_space: disk.total_space(),
             available_space: disk.available_space(),
-            file_system: String::from_utf8_lossy(disk.file_system()).to_string(),
+            file_system: disk.file_system().to_string_lossy().to_string(),
             is_removable: disk.is_removable(),
         })
         .collect();
