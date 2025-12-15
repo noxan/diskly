@@ -51,15 +51,19 @@
     </button>
   </div>
 
-  <div class="pt-2">
-    {#if loading}
+  <div class="relative pt-2">
+    {#if loading && volumes.length === 0}
       <div class="text-sm text-gray-500 dark:text-gray-400">Loading volumes...</div>
     {:else if error}
       <div class="text-sm text-red-600 dark:text-red-400">{error}</div>
     {:else if volumes.length === 0}
       <div class="text-sm text-gray-500 dark:text-gray-400">No volumes detected.</div>
     {:else}
-      <div class="grid auto-rows-fr gap-2 md:grid-cols-2 xl:grid-cols-2">
+      <div
+        class={`grid auto-rows-fr gap-2 md:grid-cols-2 xl:grid-cols-2 ${
+          loading ? 'opacity-60' : ''
+        }`}
+      >
         {#each volumes as volume (volume.mountPoint)}
           <div
             class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-700 dark:bg-gray-900/40"
@@ -121,6 +125,13 @@
           </div>
         {/each}
       </div>
+      {#if loading}
+        <div
+          class="pointer-events-none absolute inset-2 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400"
+        >
+          Refreshing volumes...
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
