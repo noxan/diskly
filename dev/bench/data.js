@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765796866011,
+  "lastUpdate": 1765799080656,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -917,6 +917,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 2980579,
             "range": "± 30197",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "richard@stromer.org",
+            "name": "Richard",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "richard@stromer.org",
+            "name": "Richard",
+            "username": "noxan"
+          },
+          "distinct": true,
+          "id": "2fbfe5d599db75543a4506a0e82ea8f7ad7d5b33",
+          "message": "remove not needed mut",
+          "timestamp": "2025-12-15T12:42:03+01:00",
+          "tree_id": "965fb30c0aeb1b7f7866740c3bad46b542217122",
+          "url": "https://github.com/noxan/diskly/commit/2fbfe5d599db75543a4506a0e82ea8f7ad7d5b33"
+        },
+        "date": 1765799080141,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 351470,
+            "range": "± 58464",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2666107,
+            "range": "± 55210",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7496322,
+            "range": "± 91743",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5725230,
+            "range": "± 76107",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 2930544,
+            "range": "± 20633",
             "unit": "ns/iter"
           }
         ]
