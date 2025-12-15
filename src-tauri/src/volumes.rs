@@ -16,18 +16,28 @@ pub async fn list_volumes() -> Result<Vec<VolumeInfo>, String> {
     let mut disks = Disks::new_with_refreshed_list();
     disks.refresh();
 
-    let volumes = disks
+    let mut seen_mount_points = std::collections::HashSet::new();
+    let volumes: Vec<VolumeInfo> = disks
         .iter()
-        .map(|disk| VolumeInfo {
-            name: disk.name().to_string_lossy().to_string(),
-            mount_point: disk.mount_point().to_string_lossy().to_string(),
-            total_space: disk.total_space(),
-            available_space: disk.available_space(),
-            file_system: disk.file_system().to_string_lossy().to_string(),
-            is_removable: disk.is_removable(),
+        .filter_map(|disk| {
+            let mount_point = disk.mount_point().to_string_lossy().to_string();
+
+            // Skip duplicates based on mount point
+            if seen_mount_points.contains(&mount_point) {
+                return None;
+            }
+            seen_mount_points.insert(mount_point.clone());
+
+            Some(VolumeInfo {
+                name: disk.name().to_string_lossy().to_string(),
+                mount_point,
+                total_space: disk.total_space(),
+                available_space: disk.available_space(),
+                file_system: disk.file_system().to_string_lossy().to_string(),
+                is_removable: disk.is_removable(),
+            })
         })
         .collect();
 
     Ok(volumes)
 }
-
