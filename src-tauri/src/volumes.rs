@@ -16,20 +16,28 @@ pub async fn list_volumes() -> Result<Vec<VolumeInfo>, String> {
     let mut disks = Disks::new_with_refreshed_list();
     disks.refresh();
 
-    let mut seen_mount_points = std::collections::HashSet::new();
+    let mut seen_names = std::collections::HashMap::new();
     let volumes: Vec<VolumeInfo> = disks
         .iter()
         .filter_map(|disk| {
             let mount_point = disk.mount_point().to_string_lossy().to_string();
-
-            // Skip duplicates based on mount point
-            if seen_mount_points.contains(&mount_point) {
+            let name = disk.name().to_string_lossy().to_string();
+            
+            // Skip macOS data volume if we have root mounted
+            if mount_point.starts_with("/System/Volumes/Data") {
                 return None;
             }
-            seen_mount_points.insert(mount_point.clone());
-
+            
+            // Skip duplicates based on disk name, preferring shorter mount points
+            if let Some(existing_mount) = seen_names.get(&name) {
+                if mount_point.len() >= existing_mount.len() {
+                    return None;
+                }
+            }
+            seen_names.insert(name.clone(), mount_point.clone());
+            
             Some(VolumeInfo {
-                name: disk.name().to_string_lossy().to_string(),
+                name,
                 mount_point,
                 total_space: disk.total_space(),
                 available_space: disk.available_space(),
@@ -41,3 +49,4 @@ pub async fn list_volumes() -> Result<Vec<VolumeInfo>, String> {
 
     Ok(volumes)
 }
+
