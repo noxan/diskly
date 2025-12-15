@@ -46,14 +46,11 @@
         <div class="flex min-h-[60vh] flex-col items-center justify-center gap-4">
           <Scanner />
           <VolumeList />
+          {#if showHistoryPanel}
+            <ScanHistory {history} onOpen={handleOpenHistory} onRescan={handleRescanHistory} />
+          {/if}
         </div>
       {/if}
     </div>
-
-    {#if showHistoryPanel}
-      <div class="mt-6 lg:mt-0">
-        <ScanHistory {history} onOpen={handleOpenHistory} onRescan={handleRescanHistory} />
-      </div>
-    {/if}
   </div>
 </div>
