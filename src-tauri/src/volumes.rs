@@ -14,7 +14,6 @@ pub struct VolumeInfo {
 #[tauri::command]
 pub async fn list_volumes() -> Result<Vec<VolumeInfo>, String> {
     let mut disks = Disks::new_with_refreshed_list();
-    disks.refresh();
 
     let mut seen_names: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
