@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765799080656,
+  "lastUpdate": 1765812385342,
   "repoUrl": "https://github.com/noxan/diskly",
   "entries": {
     "Benchmark": [
@@ -971,6 +971,60 @@ window.BENCHMARK_DATA = {
             "name": "scanner/deep_narrow_100_levels",
             "value": 2930544,
             "range": "± 20633",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "noxan@users.noreply.github.com",
+            "name": "Richard Stromer",
+            "username": "noxan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "96750234091858ff7aedc8b24f5c9ef3fb6104ab",
+          "message": "Merge pull request #20 from noxan/noxan/fix-memory-freeze\n\nfix: eliminate app freezing and 10GB memory consumption",
+          "timestamp": "2025-12-15T16:23:52+01:00",
+          "tree_id": "89217c43b951507e3c28dab0fa78195a78f566b1",
+          "url": "https://github.com/noxan/diskly/commit/96750234091858ff7aedc8b24f5c9ef3fb6104ab"
+        },
+        "date": 1765812384359,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "scanner/small_100_files_3_levels",
+            "value": 349703,
+            "range": "± 29828",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/medium_1000_files_5_levels",
+            "value": 2683551,
+            "range": "± 69336",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/large_10000_files_7_levels",
+            "value": 7461361,
+            "range": "± 116770",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/wide_flat_5000_files",
+            "value": 5846524,
+            "range": "± 31173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "scanner/deep_narrow_100_levels",
+            "value": 2989802,
+            "range": "± 37043",
             "unit": "ns/iter"
           }
         ]
