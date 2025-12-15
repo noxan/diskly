@@ -42,10 +42,15 @@
 </script>
 
 {#if history.length > 0}
-  <div class="h-full">
-    <h3 class="mb-2 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
-      Recent
-    </h3>
+  <div
+    class="h-full rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+  >
+    <div
+      class="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
+    >
+      <FolderOpen class="h-3.5 w-3.5" />
+      <span>Recent</span>
+    </div>
 
     <div class="max-h-[70vh] space-y-1 overflow-y-auto">
       {#each orderedHistory() as entry (entry.path)}

@@ -1,5 +1,5 @@
-import { writable } from "svelte/store";
-import { invoke } from "@tauri-apps/api/core";
+import { writable } from 'svelte/store';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface VolumeInfo {
   name: string;
@@ -19,7 +19,7 @@ interface VolumeState {
 const initialState: VolumeState = {
   volumes: [],
   loading: false,
-  error: null,
+  error: null
 };
 
 function createVolumeStore() {
@@ -30,12 +30,16 @@ function createVolumeStore() {
     async refresh() {
       update((state) => ({ ...state, loading: true, error: null }));
       try {
-        const volumes = await invoke<VolumeInfo[]>("list_volumes");
+        const volumes = await invoke<VolumeInfo[]>('list_volumes');
         set({ volumes, loading: false, error: null });
       } catch (err) {
-        set({ volumes: [], loading: false, error: err instanceof Error ? err.message : String(err) });
+        set({
+          volumes: [],
+          loading: false,
+          error: err instanceof Error ? err.message : String(err)
+        });
       }
-    },
+    }
   };
 }
 
