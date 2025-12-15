@@ -3,6 +3,7 @@
   import Progress from '$lib/components/Progress.svelte';
   import TreeView from '$lib/components/TreeView.svelte';
   import ScanHistory from '$lib/components/ScanHistory.svelte';
+  import VolumeList from '$lib/components/VolumeList.svelte';
   import { scanStore } from '$lib/stores/scan';
 
   let store = $derived($scanStore);
@@ -42,8 +43,9 @@
       {:else if data}
         <TreeView />
       {:else}
-        <div class="flex min-h-[60vh] items-center justify-center">
+        <div class="flex min-h-[60vh] flex-col items-center justify-center gap-4">
           <Scanner />
+          <VolumeList />
         </div>
       {/if}
     </div>
