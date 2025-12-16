@@ -94,7 +94,7 @@
       <!-- Treemap -->
       <div
         bind:this={containerEl}
-        class="hidden h-[70vh] w-[45%] flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50 lg:block"
+        class="hidden h-[70vh] w-[45%] flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 lg:block dark:border-gray-700 dark:bg-gray-800/50"
       >
         <TreeMap
           {data}
