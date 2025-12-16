@@ -151,7 +151,7 @@
                 class="fill-white/70 text-[9px]"
                 style="text-shadow: 0 1px 2px rgba(0,0,0,0.5)"
               >
-                {formatSize(node.value ?? 0)}
+                {formatSize(node.data.size)}
               </text>
             {/if}
           </g>
