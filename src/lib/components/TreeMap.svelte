@@ -2,6 +2,7 @@
   import { treemap, hierarchy, treemapSquarify, type HierarchyRectangularNode } from 'd3-hierarchy';
   import { scaleOrdinal } from 'd3-scale';
   import type { DirNode } from '../stores/scan';
+  import { highlightedPath } from '../stores/highlight';
 
   interface Props {
     data: DirNode;
@@ -12,7 +13,7 @@
 
   let { data, width = 500, height = 400, onSelect }: Props = $props();
 
-  let hoveredPath = $state<string | null>(null);
+  let currentHighlight = $derived($highlightedPath);
 
   // Color palette - vibrant but cohesive
   const colors = [
@@ -81,9 +82,21 @@
   }
 
   function getNodeOpacity(node: HierarchyRectangularNode<DirNode>): number {
-    const isHovered = hoveredPath === node.data.path;
+    const isHighlighted = currentHighlight === node.data.path;
     const baseOpacity = node.depth === 1 ? 0.9 : 0.7;
-    return isHovered ? 1 : baseOpacity;
+    return isHighlighted ? 1 : baseOpacity;
+  }
+
+  function isNodeHighlighted(node: HierarchyRectangularNode<DirNode>): boolean {
+    return currentHighlight === node.data.path;
+  }
+
+  function handleMouseEnter(path: string) {
+    highlightedPath.set(path);
+  }
+
+  function handleMouseLeave() {
+    highlightedPath.set(null);
   }
 
   function handleClick(node: HierarchyRectangularNode<DirNode>) {
@@ -96,15 +109,15 @@
     {#each visibleNodes as node (node.data.path)}
       {@const w = node.x1 - node.x0}
       {@const h = node.y1 - node.y0}
-      {@const isHovered = hoveredPath === node.data.path}
+      {@const isHighlighted = isNodeHighlighted(node)}
       {@const showLabel = w > 40 && h > 24}
       <g
         transform="translate({node.x0}, {node.y0})"
         class="cursor-pointer"
         role="button"
         tabindex="0"
-        onmouseenter={() => (hoveredPath = node.data.path)}
-        onmouseleave={() => (hoveredPath = null)}
+        onmouseenter={() => handleMouseEnter(node.data.path)}
+        onmouseleave={handleMouseLeave}
         onclick={() => handleClick(node)}
         onkeydown={(e) => e.key === 'Enter' && handleClick(node)}
       >
@@ -115,8 +128,8 @@
           opacity={getNodeOpacity(node)}
           rx="2"
           class="transition-opacity duration-150"
-          stroke={isHovered ? 'white' : 'transparent'}
-          stroke-width={isHovered ? 2 : 0}
+          stroke={isHighlighted ? 'white' : 'transparent'}
+          stroke-width={isHighlighted ? 2 : 0}
         />
         {#if showLabel}
           <clipPath id="clip-{node.data.path.replace(/[^a-zA-Z0-9]/g, '_')}">
