@@ -39,28 +39,37 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  // Build treemap layout
+  // Build treemap layout using pre-computed sizes (handles lazy-loaded children)
   const treemapLayout = $derived.by(() => {
-    const root = hierarchy(data)
-      .sum((d) => (d.is_file ? d.size : 0))
+    // For treemap, we need leaf nodes. Convert top-level children to leaves using their size.
+    const leafData: DirNode = {
+      ...data,
+      children:
+        data.children?.map((child) => ({
+          ...child,
+          children: [] // Treat as leaf, use pre-computed size
+        })) ?? []
+    };
+
+    const root = hierarchy(leafData)
+      .sum((d) => (d.children && d.children.length > 0 ? 0 : d.size))
       .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 
     const layout = treemap<DirNode>()
       .size([width, height])
-      .paddingOuter(2)
-      .paddingInner(1)
-      .paddingTop(18)
+      .paddingOuter(3)
+      .paddingInner(2)
       .tile(treemapSquarify.ratio(1))
       .round(true);
 
     return layout(root);
   });
 
-  // Get visible nodes (depth 1 and 2 for performance)
+  // Get visible nodes (depth 1 = top-level children)
   const visibleNodes = $derived.by(() => {
     const nodes: HierarchyRectangularNode<DirNode>[] = [];
     treemapLayout.each((node) => {
-      if (node.depth > 0 && node.depth <= 2) {
+      if (node.depth === 1) {
         const w = node.x1 - node.x0;
         const h = node.y1 - node.y0;
         // Only include nodes large enough to see
@@ -73,18 +82,12 @@
   });
 
   function getNodeColor(node: HierarchyRectangularNode<DirNode>): string {
-    // Get the top-level parent for consistent coloring
-    let current = node;
-    while (current.depth > 1 && current.parent) {
-      current = current.parent;
-    }
-    return colorScale(current.data.path);
+    return colorScale(node.data.path);
   }
 
   function getNodeOpacity(node: HierarchyRectangularNode<DirNode>): number {
     const isHighlighted = currentHighlight === node.data.path;
-    const baseOpacity = node.depth === 1 ? 0.9 : 0.7;
-    return isHighlighted ? 1 : baseOpacity;
+    return isHighlighted ? 1 : 0.85;
   }
 
   function isNodeHighlighted(node: HierarchyRectangularNode<DirNode>): boolean {
