@@ -159,20 +159,4 @@
       </g>
     {/each}
   </svg>
-
-  <!-- Tooltip -->
-  {#if hoveredPath}
-    {@const hoveredNode = visibleNodes.find((n) => n.data.path === hoveredPath)}
-    {#if hoveredNode}
-      <div
-        class="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-gray-800/95 px-3 py-2 text-xs text-white shadow-lg backdrop-blur"
-      >
-        <div class="font-medium">{hoveredNode.data.name}</div>
-        <div class="mt-1 text-gray-300">{formatSize(hoveredNode.value ?? 0)}</div>
-        <div class="mt-0.5 truncate text-gray-400" style="max-width: 200px">
-          {hoveredNode.data.path}
-        </div>
-      </div>
-    {/if}
-  {/if}
 </div>
