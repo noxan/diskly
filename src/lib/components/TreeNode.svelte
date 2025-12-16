@@ -2,6 +2,7 @@
   import TreeNode from './TreeNode.svelte';
   import type { DirNode } from '../stores/scan';
   import { scanStore } from '../stores/scan';
+  import { highlightedPath } from '../stores/highlight';
   import { invoke } from '@tauri-apps/api/core';
   import {
     ChevronRight,
@@ -26,6 +27,10 @@
   let loadingChildren = $state(false);
   // Local children state for lazy-loaded children
   let localChildren = $state<DirNode[] | null>(null);
+
+  // Synchronized highlight state
+  let currentHighlight = $derived($highlightedPath);
+  let isHighlighted = $derived(currentHighlight === node.path);
 
   function formatSize(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -100,9 +105,17 @@
 
 <div class="tree-node">
   <div
-    class="flex min-h-[2.5rem] w-full items-center gap-2 rounded-md px-3 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
-    onmouseenter={() => (showActions = true)}
-    onmouseleave={() => (showActions = false)}
+    class="flex min-h-[2.5rem] w-full items-center gap-2 rounded-md px-3 py-2 transition-colors {isHighlighted
+      ? 'bg-blue-50 ring-1 ring-blue-400 dark:bg-blue-900/30 dark:ring-blue-500'
+      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}"
+    onmouseenter={() => {
+      showActions = true;
+      highlightedPath.set(node.path);
+    }}
+    onmouseleave={() => {
+      showActions = false;
+      highlightedPath.set(null);
+    }}
     role="button"
     tabindex="0"
     onclick={toggleExpand}
