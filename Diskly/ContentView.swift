@@ -372,6 +372,30 @@ private struct Row: View {
     }
 }
 
+// MARK: - Scan spinner
+
+/// A compact spinning-arc indicator tuned to sit inside a glass pill.
+private struct ScanSpinner: View {
+    @State private var rotation = 0.0
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.28)
+            .stroke(
+                AngularGradient(colors: [.accentColor, .accentColor.opacity(0)],
+                               center: .center),
+                style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
+            )
+            .frame(width: 16, height: 16)
+            .rotationEffect(.degrees(rotation))
+            .onAppear {
+                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                    rotation = 360
+                }
+            }
+    }
+}
+
 // MARK: - Detail (path bar + treemap + bottom bars)
 
 private struct Detail: View {
@@ -396,17 +420,31 @@ private struct Detail: View {
             // Non-blocking pill so results stream in visibly behind it.
             if model.isScanning {
                 HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("Scanning… \(model.scannedCount.formatted()) items")
-                        .font(.callout)
-                    Button("Cancel") { model.cancelScan() }
-                        .controlSize(.small)
-                        .keyboardShortcut(.cancelAction)
+                    ScanSpinner()
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Scanning…")
+                            .font(.callout.weight(.medium))
+                        Text("\(model.scannedCount.formatted()) items · \(model.scannedBytes.byteString)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 170, alignment: .leading)
+                    Button { model.cancelScan() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(.quaternary))
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .help("Cancel scan")
                 }
-                .padding(.horizontal, 14).padding(.vertical, 8)
+                .padding(.horizontal, 16).padding(.vertical, 10)
                 .background(.regularMaterial, in: Capsule())
-                .shadow(radius: 8, y: 2)
-                .padding(.bottom, 12)
+                .overlay(Capsule().stroke(.quaternary, lineWidth: 0.5))
+                .shadow(radius: 10, y: 3)
+                .padding(.bottom, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
