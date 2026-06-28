@@ -145,15 +145,31 @@ final class AppModel {
 
     var current: FileNode? { path.last ?? root }
 
-    func open() {
+    init() { loadRecents() }
+
+    /// Show the folder picker, optionally pre-pointed near `start` so a quick
+    /// location is one click away.
+    func open(at start: URL? = nil) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Scan"
         panel.message = "Choose a folder to analyze"
+        // Point at the parent so the target folder is selectable in one click.
+        if let start { panel.directoryURL = start.deletingLastPathComponent() }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         scan(url)
+    }
+
+    /// Scan a quick location. If we already hold a bookmark for it (granted on a
+    /// previous run), scan instantly; otherwise open the pre-pointed picker.
+    func openQuick(_ url: URL) {
+        if let r = recents.first(where: { $0.url.standardizedFileURL == url.standardizedFileURL }) {
+            scanRecent(r)
+        } else {
+            open(at: url)
+        }
     }
 
     /// Scan a folder dropped onto the welcome screen. Ignores files.
@@ -168,6 +184,19 @@ final class AppModel {
         scan(url)
     }
 
+    /// Return to the welcome screen, discarding the current scan. Recents persist.
+    func goHome() {
+        scanTask?.cancel()
+        accessedURL?.stopAccessingSecurityScopedResource()
+        accessedURL = nil
+        root = nil
+        path = []
+        selected = nil
+        hovered = nil
+        marked.removeAll()
+        isScanning = false
+    }
+
     /// Root we hold a security-scoped access grant on (from the open panel), so
     /// reads and trashing work across the session. Released on next scan.
     private var accessedURL: URL?
@@ -178,6 +207,7 @@ final class AppModel {
         scanTask?.cancel()
         accessedURL?.stopAccessingSecurityScopedResource()
         accessedURL = url.startAccessingSecurityScopedResource() ? url : nil
+        rememberRecent(url)        // bookmark while access is active
         isScanning = true
         scannedCount = 0
         selected = nil
@@ -214,6 +244,51 @@ final class AppModel {
         } else {
             accessedURL = nil
         }
+    }
+
+    // MARK: Recent folders (security-scoped bookmarks)
+
+    private static let recentsKey = "recentBookmarks"
+
+    var recents: [RecentFolder] = []
+
+    private func loadRecents() {
+        let datas = UserDefaults.standard.array(forKey: Self.recentsKey) as? [Data] ?? []
+        recents = datas.compactMap { data in
+            var stale = false
+            guard let url = try? URL(resolvingBookmarkData: data,
+                                     options: .withSecurityScope,
+                                     relativeTo: nil, bookmarkDataIsStale: &stale)
+            else { return nil }
+            return RecentFolder(url: url, bookmark: data)
+        }
+    }
+
+    private func saveRecents() {
+        UserDefaults.standard.set(recents.map(\.bookmark), forKey: Self.recentsKey)
+    }
+
+    /// Bookmark a freshly scanned folder so it re-opens instantly later.
+    private func rememberRecent(_ url: URL) {
+        guard let data = try? url.bookmarkData(options: .withSecurityScope,
+                                               includingResourceValuesForKeys: nil,
+                                               relativeTo: nil) else { return }
+        recents.removeAll { $0.url.standardizedFileURL == url.standardizedFileURL }
+        recents.insert(RecentFolder(url: url, bookmark: data), at: 0)
+        if recents.count > 8 { recents.removeLast(recents.count - 8) }
+        saveRecents()
+    }
+
+    func scanRecent(_ r: RecentFolder) {
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: r.bookmark,
+                                 options: .withSecurityScope,
+                                 relativeTo: nil, bookmarkDataIsStale: &stale) else {
+            recents.removeAll { $0.id == r.id }       // bookmark went dead
+            saveRecents()
+            return
+        }
+        scan(url)
     }
 
     func drill(into node: FileNode) {
@@ -295,4 +370,29 @@ final class AppModel {
 
 extension Int64 {
     var byteString: String { formatted(.byteCount(style: .file)) }
+}
+
+/// A previously scanned folder, re-openable via its security-scoped bookmark.
+struct RecentFolder: Identifiable {
+    let url: URL
+    let bookmark: Data
+    var id: URL { url }
+}
+
+/// Common starting points shown on the welcome screen.
+struct QuickLocation: Identifiable {
+    let name: String
+    let icon: String
+    let url: URL
+    var id: String { name }
+
+    static var all: [QuickLocation] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            .init(name: "Home", icon: "house", url: home),
+            .init(name: "Desktop", icon: "menubar.dock.rectangle", url: home.appending(path: "Desktop")),
+            .init(name: "Downloads", icon: "arrow.down.circle", url: home.appending(path: "Downloads")),
+            .init(name: "Applications", icon: "square.grid.2x2", url: URL(filePath: "/Applications")),
+        ]
+    }
 }

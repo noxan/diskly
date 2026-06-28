@@ -46,25 +46,81 @@ private struct Welcome: View {
     var body: some View {
         Group {
             if model.isScanning {
-                ProgressView("Scanning… \(model.scannedCount.formatted()) items")
-                    .controlSize(.large)
-            } else {
-                ContentUnavailableView {
-                    Label("Diskly", systemImage: "chart.pie")
-                } description: {
-                    Text("Scan a folder to visualize disk usage,\nor drag one here.")
-                } actions: {
-                    Button("Choose Folder…") { model.open() }
-                        .buttonStyle(.borderedProminent)
+                VStack(spacing: 14) {
+                    ProgressView("Scanning… \(model.scannedCount.formatted()) items")
+                        .controlSize(.large)
+                    Button("Cancel") { model.cancelScan() }
+                        .keyboardShortcut(.cancelAction)
                 }
+            } else {
+                content
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(dropping ? Color.accentColor.opacity(0.08) : .clear)
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first else { return false }
             model.scan(dropped: url)
             return true
         } isTargeted: { dropping = $0 }
+    }
+
+    private var content: some View {
+        VStack(spacing: 22) {
+            VStack(spacing: 8) {
+                Image(systemName: "chart.pie")
+                    .font(.system(size: 46))
+                    .foregroundStyle(.tint)
+                Text("Diskly").font(.largeTitle.weight(.semibold))
+                Text("Scan a folder to visualize disk usage, or drag one here.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Choose Folder…") { model.open() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+            HStack(spacing: 10) {
+                ForEach(QuickLocation.all) { loc in
+                    Button { model.openQuick(loc.url) } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: loc.icon).font(.title2)
+                            Text(loc.name).font(.caption)
+                        }
+                        .frame(width: 80, height: 62)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            if !model.recents.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RECENT")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                    ForEach(model.recents) { r in
+                        Button { model.scanRecent(r) } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "folder").foregroundStyle(.tint)
+                                Text(r.url.lastPathComponent)
+                                Spacer(minLength: 12)
+                                Text(r.url.deletingLastPathComponent().path)
+                                    .font(.caption).foregroundStyle(.secondary)
+                                    .lineLimit(1).truncationMode(.head)
+                            }
+                            .padding(.vertical, 5).padding(.horizontal, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(maxWidth: 380)
+                .padding(8)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(40)
     }
 }
 
@@ -78,8 +134,9 @@ private struct Toolbar: ToolbarContent {
             Button { model.rescan() } label: { Image(systemName: "arrow.clockwise") }
                 .help("Rescan")
                 .disabled(model.root == nil || model.isScanning)
-            Button { model.open() } label: { Image(systemName: "folder.badge.plus") }
-                .help("Choose folder to scan")
+            Button { model.goHome() } label: { Image(systemName: "house") }
+                .help("Back to start — choose another folder")
+                .disabled(model.root == nil)
         }
     }
 }
