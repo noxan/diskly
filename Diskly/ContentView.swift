@@ -266,6 +266,7 @@ private struct Sidebar: View {
                             ? RoundedRectangle(cornerRadius: 5)
                                 .fill(Color.primary.opacity(0.08))
                                 .padding(.vertical, 2)
+                                .padding(.horizontal, 10)   // match inset selection width
                             : nil
                         )
                         .contextMenu { rowMenu(node) }
