@@ -7,13 +7,19 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model = AppModel()
+    // ponytail: collapse to detail-only until a folder is scanned, so the
+    // welcome CTA shows once instead of in both panes.
+    @State private var columns: NavigationSplitViewVisibility = .detailOnly
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             Sidebar(model: model)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
         } detail: {
             Detail(model: model)
+        }
+        .onChange(of: model.root == nil) { _, empty in
+            columns = empty ? .detailOnly : .all
         }
         .toolbar { Toolbar(model: model) }
         .navigationTitle("Diskly")
@@ -219,7 +225,7 @@ private struct Detail: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
                 if !model.marked.isEmpty { CleanupBar(model: model) }
-                InfoBar(model: model)
+                if model.root != nil { InfoBar(model: model) }
             }
         }
     }

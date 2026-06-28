@@ -132,9 +132,16 @@ final class AppModel {
         scan(url)
     }
 
+    /// Root we hold a security-scoped access grant on (from the open panel), so
+    /// reads and trashing work across the session. Released on next scan.
+    private var accessedURL: URL?
+
     private func scan(_ url: URL) {
+        accessedURL?.stopAccessingSecurityScopedResource()
+        accessedURL = url.startAccessingSecurityScopedResource() ? url : nil
         isScanning = true
         selected = nil
+        marked.removeAll()
         Task.detached(priority: .userInitiated) {
             let tree = await Scanner.scan(url)
             await MainActor.run {
