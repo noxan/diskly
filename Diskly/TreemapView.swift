@@ -119,13 +119,14 @@ extension FileNode {
     }
 }
 
-struct TreemapView: View {
+struct TreemapView<Menu: View>: View {
     let node: FileNode
     let version: Int
     let markedIDs: Set<URL>
     @Binding var selected: FileNode?
     @Binding var hovered: FileNode?
     let onDrill: (FileNode) -> Void
+    @ViewBuilder let menu: (FileNode) -> Menu
 
     @State private var cache = LayoutCache()
 
@@ -148,6 +149,10 @@ struct TreemapView: View {
                 }
             }
             .contentShape(Rectangle())
+            // Right-click acts on the tile under the cursor (tracked via hover).
+            .contextMenu {
+                if let target = hovered { menu(target) }
+            }
             // Select fires instantly on the first tap; double-tap also drills.
             // (Not exclusive — exclusive makes the single tap wait out the
             // double-click window, which is the delay we're killing.)
