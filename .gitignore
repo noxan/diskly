@@ -60,3 +60,7 @@ fastlane/test_output
 
 # OS-level
 .DS_Store
+
+# Benchmark build artifacts
+bench/scan-bench
+bench/bench
