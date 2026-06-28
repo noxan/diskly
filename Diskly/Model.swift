@@ -19,6 +19,8 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
     var size: Int64
     var children: [FileNode]
     unowned let parent: FileNode?
+    var childrenLoaded = true
+    var cachedChildCount = 0
 
     // Set on the synthetic "Other" node that merges the small-item tail.
     var isAggregate = false
@@ -77,6 +79,10 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
     }
 
     func invalidate() { _sorted = nil; _display = nil }
+
+    var canDrill: Bool {
+        isDirectory && (isAggregate ? !children.isEmpty : (!children.isEmpty || cachedChildCount > 0))
+    }
 
     /// The synthetic node standing in for the merged small-item tail. It carries
     /// the real children, so it opens like any other folder.
@@ -350,7 +356,7 @@ final class AppModel {
 
     func rescan() {
         guard let url = root?.url else { return }
-        scan(url)
+        scan(url, preferCache: false)
     }
 
     /// Return to the welcome screen, discarding the current scan. Recents persist.
@@ -372,7 +378,7 @@ final class AppModel {
 
     private var scanTask: Task<Void, Never>?
 
-    private func scan(_ url: URL) {
+    private func scan(_ url: URL, preferCache: Bool = true) {
         scanTask?.cancel()
         accessedURL?.stopAccessingSecurityScopedResource()
         // Prefer an existing grant (self or ancestor); else this is a fresh
@@ -385,6 +391,15 @@ final class AppModel {
         selected = nil
         hovered = nil
         marked.removeAll()
+
+        if preferCache, let cached = DiskCache.restore(url) {
+            root = cached
+            path = []
+            version += 1
+            refreshCachedRoot(url)
+            return
+        }
+
         // Publish an empty root now so results show as they stream in.
         let tree = FileNode(url: url, name: url.lastPathComponent,
                             isDirectory: true, parent: nil)
@@ -403,6 +418,9 @@ final class AppModel {
                 self.isScanning = false
                 self.version += 1
             }
+            Task.detached(priority: .utility) {
+                DiskCache.save(tree)
+            }
         }
         // Drain finished subtrees into the live tree (and poll the counter)
         // on the main actor, coalescing redraws to ~10fps.
@@ -410,6 +428,44 @@ final class AppModel {
             while isScanning {
                 scannedCount = progress.count
                 attach(buffer.drain(), to: tree)
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    /// Cached restores paint immediately; this refreshes the cache and swaps in
+    /// fresh data only if the user is still looking at the same root.
+    private func refreshCachedRoot(_ url: URL) {
+        let tree = FileNode(url: url, name: url.lastPathComponent,
+                            isDirectory: true, parent: nil)
+        let progress = ScanProgress()
+        let buffer = NodeBuffer()
+        scanTask = Task.detached(priority: .utility) {
+            await Scanner.scanStreaming(url, parent: tree, progress: progress) {
+                buffer.append($0)
+            }
+            if Task.isCancelled { return }
+            tree.children = buffer.drain()
+            tree.size = tree.children.reduce(0) { $0 + $1.size }
+            tree.invalidate()
+            Task.detached(priority: .utility) {
+                DiskCache.save(tree)
+            }
+            await MainActor.run {
+                guard self.root?.url.standardizedFileURL == url.standardizedFileURL else { return }
+                if self.path.isEmpty {
+                    self.root = tree
+                    self.selected = nil
+                    self.hovered = nil
+                }
+                self.isScanning = false
+                self.scannedCount = progress.count
+                self.version += 1
+            }
+        }
+        Task { @MainActor in
+            while isScanning {
+                scannedCount = progress.count
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
@@ -485,7 +541,8 @@ final class AppModel {
     }
 
     func drill(into node: FileNode) {
-        guard node.isDirectory, !node.children.isEmpty else { return }
+        guard node.canDrill else { return }
+        loadCachedChildrenIfNeeded(node)
         path.append(node)
         selected = nil
     }
@@ -559,6 +616,15 @@ final class AppModel {
         var p: FileNode? = parent
         while let n = p { n.size -= node.size; p = n.parent }
         if selected === node { selected = nil }
+    }
+
+    private func loadCachedChildrenIfNeeded(_ node: FileNode) {
+        guard node.isDirectory, !node.childrenLoaded else { return }
+        node.children = DiskCache.loadChildren(of: node)
+        node.childrenLoaded = true
+        node.cachedChildCount = node.children.count
+        node.invalidate()
+        version += 1
     }
 }
 

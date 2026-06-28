@@ -300,7 +300,7 @@ func nodeContextMenu(_ model: AppModel, _ node: FileNode) -> some View {
     if node.isAggregate {
         Button("Open") { model.drill(into: node) }
     } else {
-        if node.isDirectory && !node.children.isEmpty {
+        if node.canDrill {
             Button("Drill In") { model.drill(into: node) }
         }
         Button("Reveal in Finder") { model.reveal(node) }
@@ -321,7 +321,7 @@ private struct Row: View {
 
     @State private var hovering = false
 
-    private var canDrill: Bool { node.isDirectory && !node.children.isEmpty }
+    private var canDrill: Bool { node.canDrill }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
