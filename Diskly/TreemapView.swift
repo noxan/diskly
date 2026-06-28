@@ -143,7 +143,8 @@ struct TreemapView<Menu: View>: View {
             ZStack(alignment: .topLeading) {
                 // Heavy layer: only re-renders when layout, selection, or marks
                 // change — never on hover (Equatable gate below).
-                TreemapCanvas(tiles: tiles, selectedID: selected?.id, markedIDs: markedIDs)
+                TreemapCanvas(tiles: tiles, selectedID: selected?.id,
+                              markedIDs: markedIDs, focused: focused)
                     .equatable()
                 // Cheap hover highlight — a single overlaid shape.
                 if let r = tiles.first(where: { $0.node === hovered })?.rect,
@@ -189,14 +190,6 @@ struct TreemapView<Menu: View>: View {
             .onKeyPress(.deleteForward) { toggleSelected(); return .handled }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        // Accent border marks the treemap as the keyboard target (the sidebar
-        // shows its own focus via row selection color).
-        .overlay {
-            if focused {
-                Rectangle().strokeBorder(Color.accentColor, lineWidth: 2)
-                    .allowsHitTesting(false)
-            }
-        }
     }
 
     private func hit(_ tiles: [Tile], _ p: CGPoint) -> Tile? {
@@ -245,9 +238,11 @@ private struct TreemapCanvas: View, Equatable {
     let tiles: [Tile]
     let selectedID: URL?
     let markedIDs: Set<URL>
+    let focused: Bool
 
     static func == (l: TreemapCanvas, r: TreemapCanvas) -> Bool {
         l.selectedID == r.selectedID
+            && l.focused == r.focused              // selection color follows focus
             && l.markedIDs == r.markedIDs
             && l.tiles.count == r.tiles.count
             && l.tiles.first?.node.id == r.tiles.first?.node.id
@@ -275,7 +270,10 @@ private struct TreemapCanvas: View, Equatable {
             ctx.stroke(path, with: .color(.red), lineWidth: 2)
         }
         if selectedID == tile.node.id {
-            ctx.stroke(path, with: .color(.accentColor), lineWidth: 2.5)
+            // Accent when the treemap holds keyboard focus, muted otherwise —
+            // the same focus cue a macOS list gives its selected row.
+            ctx.stroke(path, with: .color(focused ? .accentColor : .secondary),
+                       lineWidth: 2.5)
         }
 
         // Label only where there's room.
