@@ -41,16 +41,29 @@ struct ContentView: View {
 
 private struct Welcome: View {
     @Bindable var model: AppModel
+    @State private var dropping = false
 
     var body: some View {
-        ContentUnavailableView {
-            Label("Diskly", systemImage: "chart.pie")
-        } description: {
-            Text("Scan a folder to visualize disk usage.")
-        } actions: {
-            Button("Choose Folder…") { model.open() }
-                .buttonStyle(.borderedProminent)
+        Group {
+            if model.isScanning {
+                ProgressView("Scanning…").controlSize(.large)
+            } else {
+                ContentUnavailableView {
+                    Label("Diskly", systemImage: "chart.pie")
+                } description: {
+                    Text("Scan a folder to visualize disk usage,\nor drag one here.")
+                } actions: {
+                    Button("Choose Folder…") { model.open() }
+                        .buttonStyle(.borderedProminent)
+                }
+            }
         }
+        .background(dropping ? Color.accentColor.opacity(0.08) : .clear)
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            model.scan(dropped: url)
+            return true
+        } isTargeted: { dropping = $0 }
     }
 }
 

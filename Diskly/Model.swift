@@ -127,6 +127,13 @@ final class AppModel {
         scan(url)
     }
 
+    /// Scan a folder dropped onto the welcome screen. Ignores files.
+    func scan(dropped url: URL) {
+        guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+        else { return }
+        scan(url)
+    }
+
     func rescan() {
         guard let url = root?.url else { return }
         scan(url)
