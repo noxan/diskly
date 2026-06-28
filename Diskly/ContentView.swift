@@ -234,7 +234,7 @@ private struct Sidebar: View {
     var body: some View {
         if let current = model.current {
             let _ = model.version
-            let kids = current.sortedChildren
+            let kids = current.displayChildren
             let total = max(current.size, 1)
             List(selection: Binding(
                 get: { model.selected?.id },
@@ -244,10 +244,17 @@ private struct Sidebar: View {
                     Row(node: node,
                         fraction: Double(node.size) / Double(total),
                         marked: model.isMarked(node),
-                        highlighted: model.hovered === node,
                         onHover: { model.hovered = $0 ? node : nil },
                         onDrill: { model.drill(into: node) })
                         .tag(node.id)
+                        // Full-row hover fill matching the selection's extent.
+                        // Skip it when selected so the system selection shows.
+                        .listRowBackground(
+                            model.hovered === node && model.selected !== node
+                            ? RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.primary.opacity(0.08))
+                            : nil
+                        )
                         .contextMenu { rowMenu(node) }
                 }
             }
@@ -272,22 +279,25 @@ private struct Sidebar: View {
 /// Shared right-click menu for a file node — used by sidebar rows and treemap tiles.
 @ViewBuilder
 func nodeContextMenu(_ model: AppModel, _ node: FileNode) -> some View {
-    if node.isDirectory && !node.children.isEmpty {
-        Button("Drill In") { model.drill(into: node) }
+    if node.isAggregate {
+        Text("^[\(node.aggregatedCount) small item](inflect: true) grouped")
+    } else {
+        if node.isDirectory && !node.children.isEmpty {
+            Button("Drill In") { model.drill(into: node) }
+        }
+        Button("Reveal in Finder") { model.reveal(node) }
+        Divider()
+        Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
+            model.toggleMark(node)
+        }
+        .disabled(node.parent == nil)
     }
-    Button("Reveal in Finder") { model.reveal(node) }
-    Divider()
-    Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
-        model.toggleMark(node)
-    }
-    .disabled(node.parent == nil)
 }
 
 private struct Row: View {
     let node: FileNode
     let fraction: Double
     let marked: Bool
-    let highlighted: Bool
     let onHover: (Bool) -> Void
     let onDrill: () -> Void
 
@@ -333,7 +343,6 @@ private struct Row: View {
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onHover { h in hovering = h; onHover(h) }
-        .background(hovering || highlighted ? Color.primary.opacity(0.06) : .clear)
     }
 }
 

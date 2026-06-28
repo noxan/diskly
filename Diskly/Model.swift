@@ -20,6 +20,10 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
     var children: [FileNode]
     unowned let parent: FileNode?
 
+    // Set on the synthetic "Other" node that merges the small-item tail.
+    var isAggregate = false
+    var aggregatedCount = 0
+
     var id: URL { url }
 
     init(url: URL, name: String, isDirectory: Bool, size: Int64 = 0,
@@ -33,6 +37,7 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
     }
 
     private var _sorted: [FileNode]?
+    private var _display: [FileNode]?
 
     /// Children worth showing, largest first. Cached; call `invalidate()` after
     /// mutating `children`.
@@ -43,7 +48,43 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
         return s
     }
 
-    func invalidate() { _sorted = nil }
+    /// Display children: big items individually, the small tail merged into one
+    /// "Other" node. Drives the treemap and the list identically. Cached.
+    ///
+    /// "Small" is dynamic: under 1% of this folder's size. Only kicks in for
+    /// busy folders (>12 children) and when it actually merges ≥2 items.
+    var displayChildren: [FileNode] {
+        if let d = _display { return d }
+        let kids = sortedChildren
+        let result: [FileNode]
+        if kids.count > 12, size > 0 {
+            let threshold = Int64(Double(size) * 0.01)
+            let bigCount = kids.prefix { $0.size >= threshold }.count
+            let small = kids[bigCount...]
+            if small.count >= 2 {
+                let total = small.reduce(Int64(0)) { $0 + $1.size }
+                let other = FileNode.aggregate(count: small.count, size: total, parent: self)
+                result = Array(kids[..<bigCount]) + [other]
+            } else {
+                result = kids
+            }
+        } else {
+            result = kids
+        }
+        _display = result
+        return result
+    }
+
+    func invalidate() { _sorted = nil; _display = nil }
+
+    /// The synthetic node standing in for the merged small-item tail.
+    static func aggregate(count: Int, size: Int64, parent: FileNode) -> FileNode {
+        let url = parent.url.appendingPathComponent(".__diskly_other__")
+        let n = FileNode(url: url, name: "Other", isDirectory: false, size: size, parent: parent)
+        n.isAggregate = true
+        n.aggregatedCount = count
+        return n
+    }
 }
 
 // MARK: - Scanner
@@ -346,6 +387,7 @@ final class AppModel {
     }
 
     func reveal(_ node: FileNode) {
+        guard !node.isAggregate else { return }
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
     }
 
@@ -358,7 +400,7 @@ final class AppModel {
     func isMarked(_ node: FileNode) -> Bool { marked[node.url] != nil }
 
     func toggleMark(_ node: FileNode) {
-        guard node.parent != nil else { return }    // never stage the scan root
+        guard node.parent != nil, !node.isAggregate else { return }
         if marked[node.url] != nil { marked[node.url] = nil }
         else { marked[node.url] = node }
         version += 1

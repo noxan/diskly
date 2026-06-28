@@ -89,6 +89,9 @@ extension FileNode {
     /// Soft, type-derived fill. Folders read as cool neutral; files get a stable
     /// pastel hue per extension.
     var tileColor: Color {
+        if isAggregate {
+            return Color(hue: 0, saturation: 0, brightness: 0.55)   // neutral gray
+        }
         if isDirectory {
             return Color(hue: 0.58, saturation: 0.12, brightness: 0.78)
         }
@@ -111,7 +114,7 @@ extension FileNode {
     func tiles(_ node: FileNode, _ version: Int, _ size: CGSize) -> [Tile] {
         let k = "\(node.id)|\(node.size)|\(version)|\(Int(size.width))x\(Int(size.height))"
         if k != key {
-            tiles = Treemap.layout(node.sortedChildren,
+            tiles = Treemap.layout(node.displayChildren,
                                    in: CGRect(origin: .zero, size: size))
             key = k
         }
