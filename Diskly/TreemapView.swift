@@ -130,6 +130,7 @@ struct TreemapView<Menu: View>: View {
     @ViewBuilder let menu: (FileNode) -> Menu
 
     @State private var cache = LayoutCache()
+    @FocusState private var focused: Bool
 
     private enum Move { case left, right, up, down }
 
@@ -175,6 +176,7 @@ struct TreemapView<Menu: View>: View {
             // return drills in. Needs focus — clicking the treemap grants it.
             .focusable()
             .focusEffectDisabled()
+            .focused($focused)
             .onKeyPress(.leftArrow)  { move(.left, tiles);  return .handled }
             .onKeyPress(.rightArrow) { move(.right, tiles); return .handled }
             .onKeyPress(.upArrow)    { move(.up, tiles);    return .handled }
@@ -184,6 +186,14 @@ struct TreemapView<Menu: View>: View {
             .onKeyPress(.deleteForward) { toggleSelected(); return .handled }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        // Accent border marks the treemap as the keyboard target (the sidebar
+        // shows its own focus via row selection color).
+        .overlay {
+            if focused {
+                Rectangle().strokeBorder(Color.accentColor, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     private func hit(_ tiles: [Tile], _ p: CGPoint) -> Tile? {
