@@ -217,7 +217,13 @@ private struct PathBar: View {
                 .buttonStyle(.plain)
                 .disabled(isLast)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            if let current = model.current {
+                let displaySize = model.isScanning ? model.scannedBytes : current.size
+                Text(displaySize.byteString)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
         .lineLimit(1)
         .padding(.horizontal, 14)
@@ -366,6 +372,30 @@ private struct Row: View {
     }
 }
 
+// MARK: - Scan spinner
+
+/// A compact spinning-arc indicator tuned to sit inside a glass pill.
+private struct ScanSpinner: View {
+    @State private var rotation = 0.0
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.28)
+            .stroke(
+                AngularGradient(colors: [.accentColor, .accentColor.opacity(0)],
+                               center: .center),
+                style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
+            )
+            .frame(width: 16, height: 16)
+            .rotationEffect(.degrees(rotation))
+            .onAppear {
+                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                    rotation = 360
+                }
+            }
+    }
+}
+
 // MARK: - Detail (path bar + treemap + bottom bars)
 
 private struct Detail: View {
@@ -389,18 +419,31 @@ private struct Detail: View {
 
             // Non-blocking pill so results stream in visibly behind it.
             if model.isScanning {
-                HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("Scanning… \(model.scannedCount.formatted()) items")
-                        .font(.callout)
-                    Button("Cancel") { model.cancelScan() }
-                        .controlSize(.small)
-                        .keyboardShortcut(.cancelAction)
+                HStack(spacing: 12) {
+                    ScanSpinner()
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Scanning…")
+                            .font(.callout.weight(.medium))
+                        Text("\(model.scannedCount.formatted()) items · \(model.scannedBytes.byteStringFixed)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    Button { model.cancelScan() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(.quaternary))
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .help("Cancel scan")
                 }
-                .padding(.horizontal, 14).padding(.vertical, 8)
+                .padding(.horizontal, 16).padding(.vertical, 10)
                 .background(.regularMaterial, in: Capsule())
-                .shadow(radius: 8, y: 2)
-                .padding(.bottom, 12)
+                .overlay(Capsule().stroke(.quaternary, lineWidth: 0.5))
+                .shadow(radius: 10, y: 3)
+                .padding(.bottom, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
@@ -409,8 +452,18 @@ private struct Detail: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
+                if model.showingCachedScan {
+                    HStack(spacing: 6) {
+                        Label("Cached scan", systemImage: "clock.arrow.circlepath")
+                        Spacer()
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .frame(height: 28)
+                    .background(.bar)
+                }
                 if !model.marked.isEmpty { CleanupBar(model: model) }
-                if model.root != nil { InfoBar(model: model) }
             }
         }
     }
@@ -434,54 +487,6 @@ private struct CleanupBar: View {
             Button("Move to Trash") { model.cleanMarked() }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 44)
-        .background(.bar)
-    }
-}
-
-private struct InfoBar: View {
-    @Bindable var model: AppModel
-
-    var body: some View {
-        let target = model.selected ?? model.current
-        HStack(spacing: 12) {
-            if let target {
-                Image(systemName: target.isAggregate ? "ellipsis.circle.fill"
-                      : (target.isDirectory ? "folder.fill" : "doc.fill"))
-                    .foregroundStyle(target.tileColor)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(target.isAggregate ? "Other"
-                         : model.selected == nil ? "\(target.name) (total)" : target.name)
-                        .font(.callout.weight(.medium)).lineLimit(1)
-                    Text(target.isAggregate
-                         ? "\(target.aggregatedCount) small items grouped"
-                         : target.url.path)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-                Spacer()
-                if model.showingCachedScan {
-                    Label("Cached", systemImage: "clock.arrow.circlepath")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text(target.size.byteString)
-                    .font(.callout.monospacedDigit().weight(.medium))
-                if let sel = model.selected, !sel.isAggregate {
-                    Button { model.reveal(sel) } label: { Image(systemName: "magnifyingglass") }
-                        .help("Reveal in Finder")
-                    Button { model.toggleMark(sel) } label: {
-                        Image(systemName: model.isMarked(sel) ? "trash.slash" : "trash")
-                    }
-                    .help(model.isMarked(sel) ? "Unmark" : "Mark for Deletion")
-                    .disabled(sel.parent == nil)
-                }
-            } else {
-                Text("Ready").foregroundStyle(.secondary)
-                Spacer()
-            }
         }
         .padding(.horizontal, 14)
         .frame(height: 44)

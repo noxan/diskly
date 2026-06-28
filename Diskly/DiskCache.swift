@@ -9,8 +9,6 @@
 import Foundation
 import SQLite3
 
-private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-
 nonisolated enum DiskCache {
     private static let schemaVersion = 1
 
@@ -204,6 +202,7 @@ nonisolated enum DiskCache {
     }
 
     private static func bind(_ stmt: OpaquePointer?, _ index: Int32, _ value: String) {
+        let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         sqlite3_bind_text(stmt, index, value, -1, sqliteTransient)
     }
 

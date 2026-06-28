@@ -104,8 +104,10 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
 nonisolated final class ScanProgress: @unchecked Sendable {
     private let lock = NSLock()
     private var _count = 0
-    func add(_ n: Int) { lock.lock(); _count += n; lock.unlock() }
+    private var _bytes: Int64 = 0
+    func add(_ n: Int, bytes: Int64 = 0) { lock.lock(); _count += n; _bytes += bytes; lock.unlock() }
     var count: Int { lock.lock(); defer { lock.unlock() }; return _count }
+    var bytes: Int64 { lock.lock(); defer { lock.unlock() }; return _bytes }
 }
 
 /// Holds fully-built top-level subtrees emitted by a streaming scan until the
@@ -218,7 +220,7 @@ nonisolated enum Scanner {
                               onChild: @escaping @Sendable (FileNode) -> Void) async {
         let gate = ScanGate(limit: ProcessInfo.processInfo.activeProcessorCount)
         let contents = entries(of: root.path)
-        progress.add(contents.count)
+        progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
         await withTaskGroup(of: Void.self) { group in
             for e in contents {
                 group.addTask {
@@ -242,7 +244,7 @@ nonisolated enum Scanner {
     private static func build(_ node: FileNode, gate: ScanGate, progress: ScanProgress) async {
         if Task.isCancelled { return }       // bail fast when the scan is cancelled
         let contents = entries(of: node.url.path)
-        progress.add(contents.count)
+        progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
 
         var kids: [FileNode] = []
         kids.reserveCapacity(contents.count)
@@ -286,6 +288,7 @@ final class AppModel {
     var isScanning = false
     var scannedCount = 0               // live item count during a scan
     var showingCachedScan = false
+    var scannedBytes: Int64 = 0        // live bytes seen during a scan
     var version = 0                    // bumped on tree mutation to force redraw
 
     var current: FileNode? { path.last ?? root }
@@ -390,6 +393,7 @@ final class AppModel {
         rememberRecent(url)        // bookmark while access is active
         isScanning = true
         scannedCount = 0
+        scannedBytes = 0
         selected = nil
         hovered = nil
         marked.removeAll()
@@ -431,6 +435,7 @@ final class AppModel {
         Task { @MainActor in
             while isScanning {
                 scannedCount = progress.count
+                scannedBytes = progress.bytes
                 attach(buffer.drain(), to: tree)
                 try? await Task.sleep(for: .milliseconds(100))
             }
@@ -596,6 +601,21 @@ final class AppModel {
 
 extension Int64 {
     var byteString: String { formatted(.byteCount(style: .file)) }
+
+    /// Fixed one-decimal byte string (e.g. "12.30 MB") — width-stable for
+    /// live counters where unit transitions and integer/decimal flips would
+    /// otherwise make the pill jump.
+    var byteStringFixed: String {
+        Self.fixedFormatter.string(fromByteCount: self)
+    }
+
+    private static let fixedFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowedUnits = [.useKB, .useMB, .useGB, .useTB, .usePB]
+        f.zeroPadsFractionDigits = true
+        return f
+    }()
 }
 
 /// A previously scanned folder, re-openable via its security-scoped bookmark.
