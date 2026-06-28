@@ -217,7 +217,12 @@ private struct PathBar: View {
                 .buttonStyle(.plain)
                 .disabled(isLast)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            if let current = model.current {
+                Text(current.size.byteString)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
         .lineLimit(1)
         .padding(.horizontal, 14)
@@ -408,10 +413,7 @@ private struct Detail: View {
             if model.root != nil { PathBar(model: model) }
         }
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 0) {
-                if !model.marked.isEmpty { CleanupBar(model: model) }
-                if model.root != nil { InfoBar(model: model) }
-            }
+            if !model.marked.isEmpty { CleanupBar(model: model) }
         }
     }
 }
@@ -441,48 +443,6 @@ private struct CleanupBar: View {
     }
 }
 
-private struct InfoBar: View {
-    @Bindable var model: AppModel
-
-    var body: some View {
-        let target = model.selected ?? model.current
-        HStack(spacing: 12) {
-            if let target {
-                Image(systemName: target.isAggregate ? "ellipsis.circle.fill"
-                      : (target.isDirectory ? "folder.fill" : "doc.fill"))
-                    .foregroundStyle(target.tileColor)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(target.isAggregate ? "Other"
-                         : model.selected == nil ? "\(target.name) (total)" : target.name)
-                        .font(.callout.weight(.medium)).lineLimit(1)
-                    Text(target.isAggregate
-                         ? "\(target.aggregatedCount) small items grouped"
-                         : target.url.path)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-                Spacer()
-                Text(target.size.byteString)
-                    .font(.callout.monospacedDigit().weight(.medium))
-                if let sel = model.selected, !sel.isAggregate {
-                    Button { model.reveal(sel) } label: { Image(systemName: "magnifyingglass") }
-                        .help("Reveal in Finder")
-                    Button { model.toggleMark(sel) } label: {
-                        Image(systemName: model.isMarked(sel) ? "trash.slash" : "trash")
-                    }
-                    .help(model.isMarked(sel) ? "Unmark" : "Mark for Deletion")
-                    .disabled(sel.parent == nil)
-                }
-            } else {
-                Text("Ready").foregroundStyle(.secondary)
-                Spacer()
-            }
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 44)
-        .background(.bar)
-    }
-}
 
 #Preview {
     ContentView()
