@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit   // NSApp — read click count for double-click drilling
 
 struct Tile {
     let node: FileNode
@@ -161,14 +162,13 @@ struct TreemapView<Menu: View>: View {
             .contextMenu {
                 if let target = hovered { menu(target) }
             }
-            // Select fires instantly on the first tap; double-tap also drills.
-            // (Not exclusive — exclusive makes the single tap wait out the
-            // double-click window, which is the delay we're killing.)
+            // One tap gesture, so selection fires instantly — a separate count:2
+            // gesture would force this one to wait out the double-click window.
+            // Double-click is read from the event's click count instead.
             .gesture(SpatialTapGesture(count: 1).onEnded { e in
-                selected = hit(tiles, e.location)?.node
-            })
-            .gesture(SpatialTapGesture(count: 2).onEnded { e in
-                if let t = hit(tiles, e.location) { onDrill(t.node) }
+                guard let t = hit(tiles, e.location) else { selected = nil; return }
+                if NSApp.currentEvent?.clickCount == 2 { onDrill(t.node) }
+                else { selected = t.node }
             })
             .onContinuousHover { phase in
                 switch phase {
