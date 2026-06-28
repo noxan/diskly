@@ -351,6 +351,7 @@ private struct Detail: View {
                             selected: $model.selected,
                             hovered: $model.hovered,
                             onDrill: { model.drill(into: $0) },
+                            onToggleMark: { model.toggleMark($0) },
                             menu: { nodeContextMenu(model, $0) })
             } else {
                 ContentUnavailableView("Empty folder", systemImage: "tray")

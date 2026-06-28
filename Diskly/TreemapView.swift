@@ -126,9 +126,12 @@ struct TreemapView<Menu: View>: View {
     @Binding var selected: FileNode?
     @Binding var hovered: FileNode?
     let onDrill: (FileNode) -> Void
+    let onToggleMark: (FileNode) -> Void
     @ViewBuilder let menu: (FileNode) -> Menu
 
     @State private var cache = LayoutCache()
+
+    private enum Move { case left, right, up, down }
 
     var body: some View {
         GeometryReader { geo in
@@ -168,12 +171,58 @@ struct TreemapView<Menu: View>: View {
                 case .ended: hovered = nil
                 }
             }
+            // Keyboard: arrows move selection spatially, delete toggles the mark,
+            // return drills in. Needs focus — clicking the treemap grants it.
+            .focusable()
+            .focusEffectDisabled()
+            .onKeyPress(.leftArrow)  { move(.left, tiles);  return .handled }
+            .onKeyPress(.rightArrow) { move(.right, tiles); return .handled }
+            .onKeyPress(.upArrow)    { move(.up, tiles);    return .handled }
+            .onKeyPress(.downArrow)  { move(.down, tiles);  return .handled }
+            .onKeyPress(.return)     { if let s = selected { onDrill(s) }; return .handled }
+            .onKeyPress(.delete)        { toggleSelected(); return .handled }
+            .onKeyPress(.deleteForward) { toggleSelected(); return .handled }
         }
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func hit(_ tiles: [Tile], _ p: CGPoint) -> Tile? {
         tiles.first { $0.rect.contains(p) }
+    }
+
+    private func toggleSelected() {
+        if let s = selected { onToggleMark(s) }
+    }
+
+    /// Move selection to the nearest tile in `dir`. With nothing selected, picks
+    /// the first (largest) tile so the keyboard has an entry point.
+    private func move(_ dir: Move, _ tiles: [Tile]) {
+        guard let cur = tiles.first(where: { $0.node === selected }) else {
+            selected = tiles.first?.node
+            return
+        }
+        let c = CGPoint(x: cur.rect.midX, y: cur.rect.midY)
+        let next = tiles
+            .filter { t in
+                switch dir {
+                case .left:  return t.rect.midX < c.x - 1
+                case .right: return t.rect.midX > c.x + 1
+                case .up:    return t.rect.midY < c.y - 1
+                case .down:  return t.rect.midY > c.y + 1
+                }
+            }
+            // Distance along the travel axis, with off-axis drift penalized so
+            // an arrow tends to land on the neighbor it visually points at.
+            .min { a, b in score(a.rect, c, dir) < score(b.rect, c, dir) }
+        if let next { selected = next.node }
+    }
+
+    private func score(_ r: CGRect, _ from: CGPoint, _ dir: Move) -> Double {
+        let dx = abs(Double(r.midX - from.x)), dy = abs(Double(r.midY - from.y))
+        switch dir {
+        case .left, .right: return dx + 2 * dy
+        case .up, .down:    return dy + 2 * dx
+        }
     }
 }
 
