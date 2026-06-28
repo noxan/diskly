@@ -108,8 +108,8 @@ private struct Welcome: View {
 
             // Hide recents that are already one click away as a disk or quick item.
             let pinned = Set((DiskVolume.all.map(\.url) + QuickLocation.all.map(\.url))
-                .map(\.standardizedFileURL))
-            let recents = model.recents.filter { !pinned.contains($0.url.standardizedFileURL) }
+                .map { $0.standardizedFileURL.path })
+            let recents = model.recents.filter { !pinned.contains($0.url.standardizedFileURL.path) }
 
             if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {

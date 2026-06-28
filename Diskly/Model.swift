@@ -468,14 +468,21 @@ final class AppModel {
 
     private func loadRecents() {
         let datas = UserDefaults.standard.array(forKey: Self.recentsKey) as? [Data] ?? []
+        // Dedup on load — keep the newest (first) entry per folder. Stale
+        // dupes can lurk in UserDefaults from earlier URL-comparison misses.
+        var seen = Set<String>()
         recents = datas.compactMap { data in
             var stale = false
             guard let url = try? URL(resolvingBookmarkData: data,
                                      options: .withSecurityScope,
                                      relativeTo: nil, bookmarkDataIsStale: &stale)
             else { return nil }
+            let key = url.standardizedFileURL.path
+            guard !seen.contains(key) else { return nil }
+            seen.insert(key)
             return RecentFolder(url: url, bookmark: data)
         }
+        if recents.map(\.bookmark) != datas { saveRecents() }
     }
 
     private func saveRecents() {
@@ -487,7 +494,10 @@ final class AppModel {
         guard let data = try? url.bookmarkData(options: .withSecurityScope,
                                                includingResourceValuesForKeys: nil,
                                                relativeTo: nil) else { return }
-        recents.removeAll { $0.url.standardizedFileURL == url.standardizedFileURL }
+        // Compare by path string, not URL equality — bookmark-resolved and
+        // panel-picked URLs for the same folder can differ in internal form.
+        let key = url.standardizedFileURL.path
+        recents.removeAll { $0.url.standardizedFileURL.path == key }
         recents.insert(RecentFolder(url: url, bookmark: data), at: 0)
         if recents.count > 8 { recents.removeLast(recents.count - 8) }
         saveRecents()
