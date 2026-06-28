@@ -121,9 +121,9 @@ private struct Welcome: View {
                         Button { model.scanRecent(r) } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "folder").foregroundStyle(.tint)
-                                Text(r.url.lastPathComponent)
+                                Text(displayName(for: r.url))
                                 Spacer(minLength: 12)
-                                Text(r.url.deletingLastPathComponent().path)
+                                Text(subtitlePath(for: r.url))
                                     .font(.caption).foregroundStyle(.secondary)
                                     .lineLimit(1).truncationMode(.head)
                             }
@@ -193,6 +193,14 @@ private struct Toolbar: ToolbarContent {
 }
 
 // MARK: - Path bar (breadcrumb)
+
+/// Parent-path subtitle for a recent. Uses the volume's friendly name when
+/// the parent is the volume root (otherwise the subtitle would just read "/").
+private func subtitlePath(for url: URL) -> String {
+    let parent = url.deletingLastPathComponent()
+    if parent.path == "/" { return displayName(for: parent) }
+    return parent.path
+}
 
 private struct PathBar: View {
     @Bindable var model: AppModel

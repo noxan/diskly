@@ -8,6 +8,22 @@
 import Foundation
 import AppKit
 
+// MARK: - Display name
+
+/// Resolve a human-friendly name for `url`. For a volume root (whose
+/// `lastPathComponent` is empty, e.g. the boot volume "/"), return the
+/// volume's localized name (e.g. "Macintosh HD") instead of the literal "/".
+func displayName(for url: URL) -> String {
+    let leaf = url.lastPathComponent
+    if !leaf.isEmpty { return leaf }
+    let keys: Set<URLResourceKey> = [.volumeNameKey]
+    if let v = try? url.resourceValues(forKeys: keys),
+       let name = v.volumeName, !name.isEmpty {
+        return name
+    }
+    return "/"
+}
+
 // MARK: - File tree
 
 /// A node in the scanned file tree. Plain class (not observed) — the tree is
@@ -390,7 +406,7 @@ final class AppModel {
         hovered = nil
         marked.removeAll()
         // Publish an empty root now so results show as they stream in.
-        let tree = FileNode(url: url, name: url.lastPathComponent,
+        let tree = FileNode(url: url, name: displayName(for: url),
                             isDirectory: true, parent: nil)
         root = tree
         path = []
