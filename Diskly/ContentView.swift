@@ -43,6 +43,9 @@ private struct Welcome: View {
     @Bindable var model: AppModel
     @State private var dropping = false
 
+    // 4 quick-location buttons + 3 gaps — recents box matches this width.
+    private let columnWidth: CGFloat = 4 * 80 + 3 * 10
+
     var body: some View {
         Group {
             if model.isScanning {
@@ -87,11 +90,13 @@ private struct Welcome: View {
                             Image(systemName: loc.icon).font(.title2)
                             Text(loc.name).font(.caption)
                         }
-                        .frame(width: 80, height: 62)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 62)
                     }
                     .buttonStyle(.bordered)
                 }
             }
+            .frame(width: columnWidth)
 
             if !model.recents.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -115,8 +120,8 @@ private struct Welcome: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .frame(maxWidth: 380)
                 .padding(8)
+                .frame(width: columnWidth)
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
             }
         }

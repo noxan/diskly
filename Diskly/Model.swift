@@ -386,8 +386,17 @@ struct QuickLocation: Identifiable {
     let url: URL
     var id: String { name }
 
+    /// The user's *real* home. In a sandbox, FileManager reports the container
+    /// path instead, so read it from the password database.
+    static var realHome: URL {
+        if let pw = getpwuid(getuid()) {
+            return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir))
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
     static var all: [QuickLocation] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = realHome
         return [
             .init(name: "Home", icon: "house", url: home),
             .init(name: "Desktop", icon: "menubar.dock.rectangle", url: home.appending(path: "Desktop")),
