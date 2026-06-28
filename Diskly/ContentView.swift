@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model = AppModel()
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
         // ponytail: no NavigationSplitView until a folder is scanned — that's
@@ -15,7 +16,7 @@ struct ContentView: View {
             if model.root == nil {
                 Welcome(model: model)
             } else {
-                NavigationSplitView {
+                NavigationSplitView(columnVisibility: $columns) {
                     Sidebar(model: model)
                         .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
                 } detail: {
