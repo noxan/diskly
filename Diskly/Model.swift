@@ -569,6 +569,21 @@ final class AppModel {
 
 extension Int64 {
     var byteString: String { formatted(.byteCount(style: .file)) }
+
+    /// Fixed one-decimal byte string (e.g. "12.30 MB") — width-stable for
+    /// live counters where unit transitions and integer/decimal flips would
+    /// otherwise make the pill jump.
+    var byteStringFixed: String {
+        Self.fixedFormatter.string(fromByteCount: self)
+    }
+
+    private static let fixedFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowedUnits = [.useKB, .useMB, .useGB, .useTB, .usePB]
+        f.zeroPadsFractionDigits = true
+        return f
+    }()
 }
 
 /// A previously scanned folder, re-openable via its security-scoped bookmark.

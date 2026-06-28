@@ -424,7 +424,7 @@ private struct Detail: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Scanning…")
                             .font(.callout.weight(.medium))
-                        Text("\(model.scannedCount.formatted()) items · \(model.scannedBytes.byteString)")
+                        Text("\(model.scannedCount.formatted()) items · \(model.scannedBytes.byteStringFixed)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
