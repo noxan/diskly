@@ -83,6 +83,14 @@ private struct Welcome: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
+            ForEach(DiskVolume.all) { disk in
+                Button { model.openQuick(disk.url) } label: {
+                    DiskRow(disk: disk)
+                }
+                .buttonStyle(.plain)
+                .frame(width: columnWidth)
+            }
+
             HStack(spacing: 10) {
                 ForEach(QuickLocation.all) { loc in
                     Button { model.openQuick(loc.url) } label: {
@@ -126,6 +134,39 @@ private struct Welcome: View {
             }
         }
         .padding(40)
+    }
+}
+
+private struct DiskRow: View {
+    let disk: DiskVolume
+
+    var body: some View {
+        let nearFull = disk.fraction > 0.9
+        HStack(spacing: 12) {
+            Image(systemName: "internaldrive")
+                .font(.system(size: 30))
+                .foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(disk.name).fontWeight(.medium)
+                    Spacer()
+                    Text("\(disk.used.byteString) of \(disk.total.byteString)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                GeometryReader { g in
+                    Capsule().fill(.quaternary)
+                        .overlay(alignment: .leading) {
+                            Capsule().fill(nearFull ? Color.red : Color.accentColor)
+                                .frame(width: max(3, g.size.width * disk.fraction))
+                        }
+                }
+                .frame(height: 6)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
     }
 }
 

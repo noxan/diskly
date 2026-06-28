@@ -379,6 +379,36 @@ struct RecentFolder: Identifiable {
     var id: URL { url }
 }
 
+/// A mounted volume, with capacity read straight from the filesystem (no scan
+/// or access grant needed).
+struct DiskVolume: Identifiable {
+    let url: URL
+    let name: String
+    let total: Int64
+    let used: Int64
+    var id: URL { url }
+
+    var fraction: Double { total > 0 ? Double(used) / Double(total) : 0 }
+
+    static var all: [DiskVolume] {
+        let keys: Set<URLResourceKey> = [
+            .volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
+            .volumeIsBrowsableKey, .volumeIsLocalKey,
+        ]
+        let urls = FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: Array(keys),
+            options: [.skipHiddenVolumes]) ?? []
+        return urls.compactMap { url in
+            guard let v = try? url.resourceValues(forKeys: keys),
+                  v.volumeIsBrowsable == true, v.volumeIsLocal == true,
+                  let total = v.volumeTotalCapacity, total > 0 else { return nil }
+            let avail = v.volumeAvailableCapacity ?? 0
+            return DiskVolume(url: url, name: v.volumeName ?? url.lastPathComponent,
+                              total: Int64(total), used: Int64(total - avail))
+        }
+    }
+}
+
 /// Common starting points shown on the welcome screen.
 struct QuickLocation: Identifiable {
     let name: String
