@@ -398,8 +398,8 @@ final class AppModel {
             root = cached
             path = []
             showingCachedScan = true
+            isScanning = false
             version += 1
-            refreshCachedRoot(url)
             return
         }
 
@@ -432,45 +432,6 @@ final class AppModel {
             while isScanning {
                 scannedCount = progress.count
                 attach(buffer.drain(), to: tree)
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-        }
-    }
-
-    /// Cached restores paint immediately; this refreshes the cache and swaps in
-    /// fresh data only if the user is still looking at the same root.
-    private func refreshCachedRoot(_ url: URL) {
-        let tree = FileNode(url: url, name: url.lastPathComponent,
-                            isDirectory: true, parent: nil)
-        let progress = ScanProgress()
-        let buffer = NodeBuffer()
-        scanTask = Task.detached(priority: .utility) {
-            await Scanner.scanStreaming(url, parent: tree, progress: progress) {
-                buffer.append($0)
-            }
-            if Task.isCancelled { return }
-            tree.children = buffer.drain()
-            tree.size = tree.children.reduce(0) { $0 + $1.size }
-            tree.invalidate()
-            Task.detached(priority: .utility) {
-                DiskCache.save(tree)
-            }
-            await MainActor.run {
-                guard self.root?.url.standardizedFileURL == url.standardizedFileURL else { return }
-                if self.path.isEmpty {
-                    self.root = tree
-                    self.selected = nil
-                    self.hovered = nil
-                    self.showingCachedScan = false
-                }
-                self.isScanning = false
-                self.scannedCount = progress.count
-                self.version += 1
-            }
-        }
-        Task { @MainActor in
-            while isScanning {
-                scannedCount = progress.count
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
