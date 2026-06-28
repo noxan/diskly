@@ -265,16 +265,22 @@ private struct Sidebar: View {
     }
 
     @ViewBuilder private func rowMenu(_ node: FileNode) -> some View {
-        if node.isDirectory && !node.children.isEmpty {
-            Button("Drill In") { model.drill(into: node) }
-        }
-        Button("Reveal in Finder") { model.reveal(node) }
-        Divider()
-        Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
-            model.toggleMark(node)
-        }
-        .disabled(node.parent == nil)
+        nodeContextMenu(model, node)
     }
+}
+
+/// Shared right-click menu for a file node — used by sidebar rows and treemap tiles.
+@ViewBuilder
+func nodeContextMenu(_ model: AppModel, _ node: FileNode) -> some View {
+    if node.isDirectory && !node.children.isEmpty {
+        Button("Drill In") { model.drill(into: node) }
+    }
+    Button("Reveal in Finder") { model.reveal(node) }
+    Divider()
+    Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
+        model.toggleMark(node)
+    }
+    .disabled(node.parent == nil)
 }
 
 private struct Row: View {
@@ -344,7 +350,8 @@ private struct Detail: View {
                             markedIDs: Set(model.marked.keys),
                             selected: $model.selected,
                             hovered: $model.hovered,
-                            onDrill: { model.drill(into: $0) })
+                            onDrill: { model.drill(into: $0) },
+                            menu: { nodeContextMenu(model, $0) })
             } else {
                 ContentUnavailableView("Empty folder", systemImage: "tray")
             }

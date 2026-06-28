@@ -162,14 +162,45 @@ final class AppModel {
         scan(url)
     }
 
-    /// Scan a quick location. If we already hold a bookmark for it (granted on a
-    /// previous run), scan instantly; otherwise open the pre-pointed picker.
+    /// Scan a quick location. If any prior grant covers it — the folder itself
+    /// or an ancestor (e.g. Home granted once covers Desktop/Downloads) — scan
+    /// instantly; otherwise open the picker to ask for access this once.
     func openQuick(_ url: URL) {
-        if let r = recents.first(where: { $0.url.standardizedFileURL == url.standardizedFileURL }) {
-            scanRecent(r)
+        if grantedBookmark(for: url) != nil {
+            scan(url)
         } else {
             open(at: url)
         }
+    }
+
+    /// A stored bookmark that grants access to `target` — the folder itself or
+    /// an ancestor we were previously given access to.
+    private func grantedBookmark(for target: URL) -> Data? {
+        let t = target.standardizedFileURL.path
+        for r in recents {
+            var stale = false
+            guard let root = try? URL(resolvingBookmarkData: r.bookmark,
+                                      options: .withSecurityScope,
+                                      relativeTo: nil, bookmarkDataIsStale: &stale)
+            else { continue }
+            let rp = root.standardizedFileURL.path
+            if rp == t || rp == "/" || t.hasPrefix(rp.hasSuffix("/") ? rp : rp + "/") {
+                return r.bookmark
+            }
+        }
+        return nil
+    }
+
+    /// Begin accessing whichever granted root covers `target`; returns that root
+    /// (to stop later), or nil if no prior grant exists.
+    private func beginGrantedAccess(for target: URL) -> URL? {
+        guard let data = grantedBookmark(for: target) else { return nil }
+        var stale = false
+        guard let root = try? URL(resolvingBookmarkData: data,
+                                  options: .withSecurityScope,
+                                  relativeTo: nil, bookmarkDataIsStale: &stale),
+              root.startAccessingSecurityScopedResource() else { return nil }
+        return root
     }
 
     /// Scan a folder dropped onto the welcome screen. Ignores files.
@@ -206,7 +237,10 @@ final class AppModel {
     private func scan(_ url: URL) {
         scanTask?.cancel()
         accessedURL?.stopAccessingSecurityScopedResource()
-        accessedURL = url.startAccessingSecurityScopedResource() ? url : nil
+        // Prefer an existing grant (self or ancestor); else this is a fresh
+        // user selection from the picker, which is itself granted.
+        accessedURL = beginGrantedAccess(for: url)
+            ?? (url.startAccessingSecurityScopedResource() ? url : nil)
         rememberRecent(url)        // bookmark while access is active
         isScanning = true
         scannedCount = 0
