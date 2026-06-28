@@ -419,7 +419,7 @@ private struct Detail: View {
 
             // Non-blocking pill so results stream in visibly behind it.
             if model.isScanning {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     ScanSpinner()
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Scanning…")
@@ -428,7 +428,6 @@ private struct Detail: View {
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
-                    .frame(width: 170, alignment: .leading)
                     Button { model.cancelScan() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .semibold))
