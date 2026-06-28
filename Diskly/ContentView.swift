@@ -46,7 +46,8 @@ private struct Welcome: View {
     var body: some View {
         Group {
             if model.isScanning {
-                ProgressView("Scanning…").controlSize(.large)
+                ProgressView("Scanning… \(model.scannedCount.formatted()) items")
+                    .controlSize(.large)
             } else {
                 ContentUnavailableView {
                     Label("Diskly", systemImage: "chart.pie")
@@ -240,7 +241,8 @@ private struct Detail: View {
 
             if model.isScanning {
                 Rectangle().fill(.regularMaterial)
-                ProgressView("Scanning…").controlSize(.large)
+                ProgressView("Scanning… \(model.scannedCount.formatted()) items")
+                    .controlSize(.large)
             }
         }
         .safeAreaInset(edge: .top) {

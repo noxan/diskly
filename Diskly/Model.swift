@@ -48,23 +48,33 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
 
 // MARK: - Scanner
 
+/// Live item counter shared with the running scan. Locked per directory (not
+/// per file) so counting adds no measurable cost to the hot path.
+nonisolated final class ScanProgress: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _count = 0
+    func add(_ n: Int) { lock.lock(); _count += n; lock.unlock() }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return _count }
+}
+
 nonisolated enum Scanner {
     private static let keys: Set<URLResourceKey> =
         [.isDirectoryKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
 
     /// Scan a directory tree. Top-level children are scanned in parallel across
     /// cores; each subtree is built synchronously.
-    static func scan(_ root: URL) async -> FileNode {
+    static func scan(_ root: URL, progress: ScanProgress) async -> FileNode {
         let node = FileNode(url: root, name: root.lastPathComponent,
                             isDirectory: true, parent: nil)
         let contents = (try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: Array(keys),
             options: [])) ?? []
+        progress.add(contents.count)
 
         var kids: [FileNode] = []
         await withTaskGroup(of: FileNode?.self) { group in
             for child in contents {
-                group.addTask { build(child, parent: node) }
+                group.addTask { build(child, parent: node, progress: progress) }
             }
             for await c in group where c != nil { kids.append(c!) }
         }
@@ -73,7 +83,7 @@ nonisolated enum Scanner {
         return node
     }
 
-    private static func build(_ url: URL, parent: FileNode) -> FileNode? {
+    private static func build(_ url: URL, parent: FileNode, progress: ScanProgress) -> FileNode? {
         let v = try? url.resourceValues(forKeys: keys)
         let isDir = v?.isDirectory ?? false
         let isLink = v?.isSymbolicLink ?? false
@@ -85,11 +95,12 @@ nonisolated enum Scanner {
             let contents = (try? FileManager.default.contentsOfDirectory(
                 at: url, includingPropertiesForKeys: Array(keys),
                 options: [])) ?? []
+            progress.add(contents.count)
             var total: Int64 = 0
             var kids: [FileNode] = []
             kids.reserveCapacity(contents.count)
             for child in contents {
-                if let c = build(child, parent: node) {
+                if let c = build(child, parent: node, progress: progress) {
                     kids.append(c)
                     total += c.size
                 }
@@ -112,6 +123,7 @@ final class AppModel {
     var selected: FileNode?
     var hovered: FileNode?             // shared hover (sidebar ↔ treemap)
     var isScanning = false
+    var scannedCount = 0               // live item count during a scan
     var version = 0                    // bumped on tree mutation to force redraw
 
     var current: FileNode? { path.last ?? root }
@@ -147,15 +159,24 @@ final class AppModel {
         accessedURL?.stopAccessingSecurityScopedResource()
         accessedURL = url.startAccessingSecurityScopedResource() ? url : nil
         isScanning = true
+        scannedCount = 0
         selected = nil
         marked.removeAll()
+        let progress = ScanProgress()
         Task.detached(priority: .userInitiated) {
-            let tree = await Scanner.scan(url)
+            let tree = await Scanner.scan(url, progress: progress)
             await MainActor.run {
                 self.root = tree
                 self.path = []
                 self.isScanning = false
                 self.version += 1
+            }
+        }
+        // Poll the counter on the main actor while the scan runs.
+        Task { @MainActor in
+            while isScanning {
+                scannedCount = progress.count
+                try? await Task.sleep(for: .milliseconds(100))
             }
         }
     }
