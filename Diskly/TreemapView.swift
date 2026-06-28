@@ -122,6 +122,7 @@ extension FileNode {
 struct TreemapView: View {
     let node: FileNode
     let version: Int
+    let markedIDs: Set<URL>
     @Binding var selected: FileNode?
     @Binding var hovered: FileNode?
     let onDrill: (FileNode) -> Void
@@ -132,9 +133,9 @@ struct TreemapView: View {
         GeometryReader { geo in
             let tiles = cache.tiles(node, version, geo.size)
             ZStack(alignment: .topLeading) {
-                // Heavy layer: only re-renders when layout or selection changes,
-                // never on hover (Equatable gate below).
-                TreemapCanvas(tiles: tiles, selectedID: selected?.id)
+                // Heavy layer: only re-renders when layout, selection, or marks
+                // change — never on hover (Equatable gate below).
+                TreemapCanvas(tiles: tiles, selectedID: selected?.id, markedIDs: markedIDs)
                     .equatable()
                 // Cheap hover highlight — a single overlaid shape.
                 if let r = tiles.first(where: { $0.node === hovered })?.rect,
@@ -175,9 +176,11 @@ struct TreemapView: View {
 private struct TreemapCanvas: View, Equatable {
     let tiles: [Tile]
     let selectedID: URL?
+    let markedIDs: Set<URL>
 
     static func == (l: TreemapCanvas, r: TreemapCanvas) -> Bool {
         l.selectedID == r.selectedID
+            && l.markedIDs == r.markedIDs
             && l.tiles.count == r.tiles.count
             && l.tiles.first?.node.id == r.tiles.first?.node.id
             && l.tiles.first?.rect == r.tiles.first?.rect   // catches resize
@@ -193,9 +196,16 @@ private struct TreemapCanvas: View, Equatable {
         let inset = tile.rect.insetBy(dx: 1, dy: 1)
         guard inset.width > 1.5, inset.height > 1.5 else { return }  // skip invisible
         let path = Path(roundedRect: inset, cornerRadius: min(5, inset.height / 3))
+        let isMarked = markedIDs.contains(tile.node.id)
 
         ctx.fill(path, with: .color(tile.node.tileColor))
+        if isMarked {
+            ctx.fill(path, with: .color(.red.opacity(0.45)))
+        }
         ctx.stroke(path, with: .color(.black.opacity(0.08)), lineWidth: 1)
+        if isMarked {
+            ctx.stroke(path, with: .color(.red), lineWidth: 2)
+        }
         if selectedID == tile.node.id {
             ctx.stroke(path, with: .color(.accentColor), lineWidth: 2.5)
         }

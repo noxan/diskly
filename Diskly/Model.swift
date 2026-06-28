@@ -170,24 +170,56 @@ final class AppModel {
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
     }
 
-    func trash(_ node: FileNode) {
-        guard node.parent != nil else { return }   // never trash the scan root
-        do {
-            try FileManager.default.trashItem(at: node.url, resultingItemURL: nil)
-        } catch {
-            NSSound.beep()
-            return
-        }
-        // Detach from parent and subtract its size up the chain.
-        if let parent = node.parent,
-           let idx = parent.children.firstIndex(where: { $0 === node }) {
-            parent.children.remove(at: idx)
-            parent.invalidate()
-            var p: FileNode? = parent
-            while let n = p { n.size -= node.size; p = n.parent }
-        }
-        if selected === node { selected = nil }
+    // MARK: Mark-for-deletion flow
+
+    /// Items staged for trashing, keyed by URL.
+    var marked: [URL: FileNode] = [:]
+    var lastError: String?
+
+    func isMarked(_ node: FileNode) -> Bool { marked[node.url] != nil }
+
+    func toggleMark(_ node: FileNode) {
+        guard node.parent != nil else { return }    // never stage the scan root
+        if marked[node.url] != nil { marked[node.url] = nil }
+        else { marked[node.url] = node }
         version += 1
+    }
+
+    func clearMarks() { marked.removeAll(); version += 1 }
+
+    var markedTotal: Int64 { marked.values.reduce(0) { $0 + $1.size } }
+
+    /// Move every marked item to the Trash. Deepest paths first so trashing a
+    /// folder never invalidates a child we haven't processed yet.
+    func cleanMarked() {
+        let nodes = marked.values.sorted {
+            $0.url.pathComponents.count > $1.url.pathComponents.count
+        }
+        var failures: [String] = []
+        for node in nodes {
+            do {
+                try FileManager.default.trashItem(at: node.url, resultingItemURL: nil)
+                remove(node)
+            } catch {
+                failures.append("\(node.name): \(error.localizedDescription)")
+            }
+        }
+        marked.removeAll()
+        if selected != nil && selected?.parent == nil { /* keep */ }
+        lastError = failures.isEmpty ? nil
+            : "Couldn't trash \(failures.count) item(s):\n" + failures.joined(separator: "\n")
+        version += 1
+    }
+
+    /// Detach a node from the tree and subtract its size up the chain.
+    private func remove(_ node: FileNode) {
+        guard let parent = node.parent,
+              let idx = parent.children.firstIndex(where: { $0 === node }) else { return }
+        parent.children.remove(at: idx)
+        parent.invalidate()
+        var p: FileNode? = parent
+        while let n = p { n.size -= node.size; p = n.parent }
+        if selected === node { selected = nil }
     }
 }
 

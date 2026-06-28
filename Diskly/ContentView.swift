@@ -16,7 +16,15 @@ struct ContentView: View {
             Detail(model: model)
         }
         .toolbar { Toolbar(model: model) }
-        .navigationTitle(model.current?.name ?? "Diskly")
+        .navigationTitle("Diskly")
+        .alert("Trash failed", isPresented: Binding(
+            get: { model.lastError != nil },
+            set: { if !$0 { model.lastError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.lastError ?? "")
+        }
     }
 }
 
@@ -26,22 +34,6 @@ private struct Toolbar: ToolbarContent {
     @Bindable var model: AppModel
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            // Breadcrumb trail.
-            HStack(spacing: 2) {
-                ForEach(Array(model.breadcrumbs.enumerated()), id: \.element.id) { i, node in
-                    if i > 0 {
-                        Image(systemName: "chevron.compact.right")
-                            .foregroundStyle(.tertiary)
-                    }
-                    Button(node.name.isEmpty ? "/" : node.name) {
-                        model.navigate(to: i == 0 ? nil : node)
-                    }
-                    .buttonStyle(.link)
-                    .disabled(i == model.breadcrumbs.count - 1)
-                }
-            }
-        }
         ToolbarItemGroup(placement: .primaryAction) {
             Button { model.rescan() } label: { Image(systemName: "arrow.clockwise") }
                 .help("Rescan")
@@ -49,6 +41,40 @@ private struct Toolbar: ToolbarContent {
             Button { model.open() } label: { Image(systemName: "folder.badge.plus") }
                 .help("Choose folder to scan")
         }
+    }
+}
+
+// MARK: - Path bar (breadcrumb)
+
+private struct PathBar: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        let crumbs = model.breadcrumbs
+        HStack(spacing: 4) {
+            ForEach(Array(crumbs.enumerated()), id: \.element.id) { i, node in
+                if i > 0 {
+                    Image(systemName: "chevron.compact.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                let isLast = i == crumbs.count - 1
+                Button {
+                    model.navigate(to: i == 0 ? nil : node)
+                } label: {
+                    Text(node.name.isEmpty ? "/" : node.name)
+                        .fontWeight(isLast ? .semibold : .regular)
+                        .foregroundStyle(isLast ? Color.primary : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isLast)
+            }
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
+        .padding(.horizontal, 14)
+        .frame(height: 36)
+        .background(.bar)
     }
 }
 
@@ -67,13 +93,11 @@ private struct Sidebar: View {
                 set: { id in model.selected = kids.first { $0.id == id } }
             )) {
                 ForEach(kids) { node in
-                    Row(node: node, fraction: Double(node.size) / Double(total))
+                    Row(node: node,
+                        fraction: Double(node.size) / Double(total),
+                        marked: model.isMarked(node))
                         .tag(node.id)
                         .contentShape(Rectangle())
-                        .onHover { isHovered in
-                            if isHovered { model.hovered = node }
-                            else if model.hovered === node { model.hovered = nil }
-                        }
                         .onTapGesture(count: 2) { model.drill(into: node) }
                         .contextMenu { rowMenu(node) }
                 }
@@ -97,21 +121,29 @@ private struct Sidebar: View {
         }
         Button("Reveal in Finder") { model.reveal(node) }
         Divider()
-        Button("Move to Trash") { model.trash(node) }
+        Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
+            model.toggleMark(node)
+        }
+        .disabled(node.parent == nil)
     }
 }
 
 private struct Row: View {
     let node: FileNode
     let fraction: Double
+    let marked: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
-                    .foregroundStyle(node.tileColor)
+                Image(systemName: marked ? "trash"
+                      : (node.isDirectory ? "folder.fill" : "doc.fill"))
+                    .foregroundStyle(marked ? Color.red : node.tileColor)
                     .imageScale(.small)
-                Text(node.name).lineLimit(1).truncationMode(.middle)
+                Text(node.name)
+                    .lineLimit(1).truncationMode(.middle)
+                    .strikethrough(marked, color: .red)
+                    .foregroundStyle(marked ? Color.secondary : Color.primary)
                 Spacer(minLength: 8)
                 Text(node.size.byteString)
                     .foregroundStyle(.secondary)
@@ -120,7 +152,7 @@ private struct Row: View {
             GeometryReader { g in
                 Capsule().fill(.quaternary)
                     .overlay(alignment: .leading) {
-                        Capsule().fill(node.tileColor)
+                        Capsule().fill(marked ? Color.red : node.tileColor)
                             .frame(width: max(2, g.size.width * fraction))
                     }
             }
@@ -130,7 +162,7 @@ private struct Row: View {
     }
 }
 
-// MARK: - Detail (treemap + info bar)
+// MARK: - Detail (path bar + treemap + bottom bars)
 
 private struct Detail: View {
     @Bindable var model: AppModel
@@ -140,6 +172,7 @@ private struct Detail: View {
             if let current = model.current, !current.children.isEmpty {
                 TreemapView(node: current,
                             version: model.version,
+                            markedIDs: Set(model.marked.keys),
                             selected: $model.selected,
                             hovered: $model.hovered,
                             onDrill: { model.drill(into: $0) })
@@ -161,7 +194,40 @@ private struct Detail: View {
                 ProgressView("Scanning…").controlSize(.large)
             }
         }
-        .safeAreaInset(edge: .bottom) { InfoBar(model: model) }
+        .safeAreaInset(edge: .top) {
+            if model.root != nil { PathBar(model: model) }
+        }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 0) {
+                if !model.marked.isEmpty { CleanupBar(model: model) }
+                InfoBar(model: model)
+            }
+        }
+    }
+}
+
+private struct CleanupBar: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "trash.circle.fill")
+                .foregroundStyle(.red)
+                .imageScale(.large)
+            Text("^[\(model.marked.count) item](inflect: true) marked")
+                .font(.callout.weight(.medium))
+            Text(model.markedTotal.byteString)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Clear") { model.clearMarks() }
+            Button("Move to Trash") { model.cleanMarked() }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .background(.bar)
     }
 }
 
@@ -186,9 +252,11 @@ private struct InfoBar: View {
                 if let sel = model.selected {
                     Button { model.reveal(sel) } label: { Image(systemName: "magnifyingglass") }
                         .help("Reveal in Finder")
-                    Button { model.trash(sel) } label: { Image(systemName: "trash") }
-                        .help("Move to Trash")
-                        .disabled(sel.parent == nil)
+                    Button { model.toggleMark(sel) } label: {
+                        Image(systemName: model.isMarked(sel) ? "trash.slash" : "trash")
+                    }
+                    .help(model.isMarked(sel) ? "Unmark" : "Mark for Deletion")
+                    .disabled(sel.parent == nil)
                 }
             } else {
                 Text("Ready").foregroundStyle(.secondary)
