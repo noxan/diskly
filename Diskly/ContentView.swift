@@ -219,7 +219,8 @@ private struct PathBar: View {
             }
             Spacer(minLength: 8)
             if let current = model.current {
-                Text(current.size.byteString)
+                let displaySize = model.isScanning ? model.scannedBytes : current.size
+                Text(displaySize.byteString)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
