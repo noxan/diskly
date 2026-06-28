@@ -5,7 +5,18 @@
   "groups" : [
     {
       "layers" : [
-
+        {
+          "hidden" : false,
+          "image-name" : "Image 2.png",
+          "name" : "Image",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -0.453125,
+              16.96875
+            ]
+          }
+        }
       ],
       "shadow" : {
         "kind" : "neutral",
