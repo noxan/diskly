@@ -285,6 +285,7 @@ final class AppModel {
     var hovered: FileNode?             // shared hover (sidebar ↔ treemap)
     var isScanning = false
     var scannedCount = 0               // live item count during a scan
+    var showingCachedScan = false
     var version = 0                    // bumped on tree mutation to force redraw
 
     var current: FileNode? { path.last ?? root }
@@ -370,6 +371,7 @@ final class AppModel {
         hovered = nil
         marked.removeAll()
         isScanning = false
+        showingCachedScan = false
     }
 
     /// Root we hold a security-scoped access grant on (from the open panel), so
@@ -395,11 +397,13 @@ final class AppModel {
         if preferCache, let cached = DiskCache.restore(url) {
             root = cached
             path = []
+            showingCachedScan = true
             version += 1
             refreshCachedRoot(url)
             return
         }
 
+        showingCachedScan = false
         // Publish an empty root now so results show as they stream in.
         let tree = FileNode(url: url, name: url.lastPathComponent,
                             isDirectory: true, parent: nil)
@@ -457,6 +461,7 @@ final class AppModel {
                     self.root = tree
                     self.selected = nil
                     self.hovered = nil
+                    self.showingCachedScan = false
                 }
                 self.isScanning = false
                 self.scannedCount = progress.count

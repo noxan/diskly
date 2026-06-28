@@ -462,6 +462,11 @@ private struct InfoBar: View {
                         .lineLimit(1).truncationMode(.middle)
                 }
                 Spacer()
+                if model.showingCachedScan {
+                    Label("Cached", systemImage: "clock.arrow.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text(target.size.byteString)
                     .font(.callout.monospacedDigit().weight(.medium))
                 if let sel = model.selected, !sel.isAggregate {
