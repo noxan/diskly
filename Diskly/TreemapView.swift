@@ -103,20 +103,47 @@ extension FileNode {
     }
 }
 
+/// Memoizes the squarified layout so it isn't recomputed on hover/selection.
+@Observable final class LayoutCache {
+    private var key = ""
+    private(set) var tiles: [Tile] = []
+
+    func tiles(_ node: FileNode, _ version: Int, _ size: CGSize) -> [Tile] {
+        let k = "\(node.id)|\(node.size)|\(version)|\(Int(size.width))x\(Int(size.height))"
+        if k != key {
+            tiles = Treemap.layout(node.sortedChildren,
+                                   in: CGRect(origin: .zero, size: size))
+            key = k
+        }
+        return tiles
+    }
+}
+
 struct TreemapView: View {
     let node: FileNode
+    let version: Int
     @Binding var selected: FileNode?
     let onDrill: (FileNode) -> Void
 
+    @State private var cache = LayoutCache()
     @State private var hovered: FileNode?
 
     var body: some View {
         GeometryReader { geo in
-            let tiles = Treemap.layout(node.sortedChildren,
-                                       in: CGRect(origin: .zero, size: geo.size))
-            Canvas { ctx, _ in
-                for tile in tiles {
-                    draw(tile, in: &ctx)
+            let tiles = cache.tiles(node, version, geo.size)
+            ZStack(alignment: .topLeading) {
+                // Heavy layer: only re-renders when layout or selection changes,
+                // never on hover (Equatable gate below).
+                TreemapCanvas(tiles: tiles, selectedID: selected?.id)
+                    .equatable()
+                // Cheap hover highlight — a single overlaid shape.
+                if let r = tiles.first(where: { $0.node === hovered })?.rect,
+                   r.width > 2, r.height > 2 {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(.white.opacity(0.18))
+                        .frame(width: r.width - 2, height: r.height - 2)
+                        .offset(x: r.minX + 1, y: r.minY + 1)
+                        .allowsHitTesting(false)
                 }
             }
             .contentShape(Rectangle())
@@ -141,19 +168,35 @@ struct TreemapView: View {
     private func hit(_ tiles: [Tile], _ p: CGPoint) -> Tile? {
         tiles.first { $0.rect.contains(p) }
     }
+}
+
+/// The base treemap drawing. Equatable so SwiftUI skips redraws unless the tile
+/// set or selection actually changed.
+private struct TreemapCanvas: View, Equatable {
+    let tiles: [Tile]
+    let selectedID: URL?
+
+    static func == (l: TreemapCanvas, r: TreemapCanvas) -> Bool {
+        l.selectedID == r.selectedID
+            && l.tiles.count == r.tiles.count
+            && l.tiles.first?.node.id == r.tiles.first?.node.id
+            && l.tiles.first?.rect == r.tiles.first?.rect   // catches resize
+    }
+
+    var body: some View {
+        Canvas { ctx, _ in
+            for tile in tiles { draw(tile, in: &ctx) }
+        }
+    }
 
     private func draw(_ tile: Tile, in ctx: inout GraphicsContext) {
-        let isSel = selected === tile.node
-        let isHov = hovered === tile.node
         let inset = tile.rect.insetBy(dx: 1, dy: 1)
-        guard inset.width > 0, inset.height > 0 else { return }
+        guard inset.width > 1.5, inset.height > 1.5 else { return }  // skip invisible
         let path = Path(roundedRect: inset, cornerRadius: min(5, inset.height / 3))
 
-        var color = tile.node.tileColor
-        if isHov { color = color.opacity(0.85) }
-        ctx.fill(path, with: .color(color))
+        ctx.fill(path, with: .color(tile.node.tileColor))
         ctx.stroke(path, with: .color(.black.opacity(0.08)), lineWidth: 1)
-        if isSel {
+        if selectedID == tile.node.id {
             ctx.stroke(path, with: .color(.accentColor), lineWidth: 2.5)
         }
 
@@ -161,19 +204,15 @@ struct TreemapView: View {
         if inset.width > 54 && inset.height > 26 {
             var label = ctx
             label.clip(to: path)
-            let text = Text(tile.node.name)
+            label.draw(label.resolve(Text(tile.node.name)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.black.opacity(0.72))
-            label.draw(label.resolve(text),
-                       at: CGPoint(x: inset.minX + 6, y: inset.minY + 5),
-                       anchor: .topLeading)
+                .foregroundStyle(.black.opacity(0.72))),
+                at: CGPoint(x: inset.minX + 6, y: inset.minY + 5), anchor: .topLeading)
             if inset.height > 42 {
-                let sub = Text(tile.node.size.byteString)
+                label.draw(label.resolve(Text(tile.node.size.byteString)
                     .font(.system(size: 9))
-                    .foregroundStyle(.black.opacity(0.5))
-                label.draw(label.resolve(sub),
-                           at: CGPoint(x: inset.minX + 6, y: inset.minY + 20),
-                           anchor: .topLeading)
+                    .foregroundStyle(.black.opacity(0.5))),
+                    at: CGPoint(x: inset.minX + 6, y: inset.minY + 20), anchor: .topLeading)
             }
         }
     }

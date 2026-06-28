@@ -134,8 +134,8 @@ private struct Detail: View {
     var body: some View {
         ZStack {
             if let current = model.current, !current.children.isEmpty {
-                let _ = model.version
                 TreemapView(node: current,
+                            version: model.version,
                             selected: $model.selected,
                             onDrill: { model.drill(into: $0) })
             } else if model.root != nil {

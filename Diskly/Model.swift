@@ -32,10 +32,18 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
         self.parent = parent
     }
 
-    /// Children worth showing, largest first.
+    private var _sorted: [FileNode]?
+
+    /// Children worth showing, largest first. Cached; call `invalidate()` after
+    /// mutating `children`.
     var sortedChildren: [FileNode] {
-        children.filter { $0.size > 0 }.sorted { $0.size > $1.size }
+        if let s = _sorted { return s }
+        let s = children.filter { $0.size > 0 }.sorted { $0.size > $1.size }
+        _sorted = s
+        return s
     }
+
+    func invalidate() { _sorted = nil }
 }
 
 // MARK: - Scanner
@@ -173,6 +181,7 @@ final class AppModel {
         if let parent = node.parent,
            let idx = parent.children.firstIndex(where: { $0 === node }) {
             parent.children.remove(at: idx)
+            parent.invalidate()
             var p: FileNode? = parent
             while let n = p { n.size -= node.size; p = n.parent }
         }
