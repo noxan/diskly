@@ -247,6 +247,7 @@ private struct Sidebar: View {
                         onHover: { model.hovered = $0 ? node : nil },
                         onDrill: { model.drill(into: node) })
                         .tag(node.id)
+                        .listRowSeparator(.hidden)
                         // Full-row hover fill matching the selection's extent.
                         // Skip it when selected so the system selection shows.
                         .listRowBackground(
