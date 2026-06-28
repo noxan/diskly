@@ -7,20 +7,21 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model = AppModel()
-    // ponytail: collapse to detail-only until a folder is scanned, so the
-    // welcome CTA shows once instead of in both panes.
-    @State private var columns: NavigationSplitViewVisibility = .detailOnly
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columns) {
-            Sidebar(model: model)
-                .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
-        } detail: {
-            Detail(model: model)
-                .toolbar(removing: model.root == nil ? .sidebarToggle : nil)
-        }
-        .onChange(of: model.root == nil) { _, empty in
-            columns = empty ? .detailOnly : .all
+        // ponytail: no NavigationSplitView until a folder is scanned — that's
+        // what auto-generates the sidebar toggle. Welcome screen stands alone.
+        Group {
+            if model.root == nil {
+                Welcome(model: model)
+            } else {
+                NavigationSplitView {
+                    Sidebar(model: model)
+                        .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
+                } detail: {
+                    Detail(model: model)
+                }
+            }
         }
         .toolbar { Toolbar(model: model) }
         .navigationTitle("Diskly")
@@ -31,6 +32,23 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.lastError ?? "")
+        }
+    }
+}
+
+// MARK: - Welcome (no folder scanned)
+
+private struct Welcome: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Diskly", systemImage: "chart.pie")
+        } description: {
+            Text("Scan a folder to visualize disk usage.")
+        } actions: {
+            Button("Choose Folder…") { model.open() }
+                .buttonStyle(.borderedProminent)
         }
     }
 }
@@ -202,17 +220,8 @@ private struct Detail: View {
                             selected: $model.selected,
                             hovered: $model.hovered,
                             onDrill: { model.drill(into: $0) })
-            } else if model.root != nil {
-                ContentUnavailableView("Empty folder", systemImage: "tray")
             } else {
-                ContentUnavailableView {
-                    Label("Diskly", systemImage: "chart.pie")
-                } description: {
-                    Text("Scan a folder to visualize disk usage.")
-                } actions: {
-                    Button("Choose Folder…") { model.open() }
-                        .buttonStyle(.borderedProminent)
-                }
+                ContentUnavailableView("Empty folder", systemImage: "tray")
             }
 
             if model.isScanning {
