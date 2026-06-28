@@ -308,14 +308,16 @@ private struct Row: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Image(systemName: marked ? "trash"
+                Image(systemName: node.isAggregate ? "ellipsis.circle.fill"
+                      : marked ? "trash"
                       : (node.isDirectory ? "folder.fill" : "doc.fill"))
                     .foregroundStyle(marked ? Color.red : node.tileColor)
                     .imageScale(.small)
-                Text(node.name)
+                Text(node.isAggregate ? "Other — ^[\(node.aggregatedCount) item](inflect: true)" : node.name)
                     .lineLimit(1).truncationMode(.middle)
                     .strikethrough(marked, color: .red)
-                    .foregroundStyle(marked ? Color.secondary : Color.primary)
+                    .foregroundStyle(node.isAggregate ? Color.secondary
+                                     : marked ? Color.secondary : Color.primary)
                 Spacer(minLength: 8)
                 Text(node.size.byteString)
                     .foregroundStyle(.secondary)
@@ -342,6 +344,9 @@ private struct Row: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+        // Simultaneous so it rides alongside the List's native single-click
+        // selection instead of stalling it (a plain count:2 tap blocks singles).
+        .simultaneousGesture(TapGesture(count: 2).onEnded(onDrill))
         .onHover { h in hovering = h; onHover(h) }
     }
 }
@@ -420,18 +425,23 @@ private struct InfoBar: View {
         let target = model.selected ?? model.current
         HStack(spacing: 12) {
             if let target {
-                Image(systemName: target.isDirectory ? "folder.fill" : "doc.fill")
+                Image(systemName: target.isAggregate ? "ellipsis.circle.fill"
+                      : (target.isDirectory ? "folder.fill" : "doc.fill"))
                     .foregroundStyle(target.tileColor)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(model.selected == nil ? "\(target.name) (total)" : target.name)
+                    Text(target.isAggregate ? "Other"
+                         : model.selected == nil ? "\(target.name) (total)" : target.name)
                         .font(.callout.weight(.medium)).lineLimit(1)
-                    Text(target.url.path).font(.caption).foregroundStyle(.secondary)
+                    Text(target.isAggregate
+                         ? "^[\(target.aggregatedCount) small item](inflect: true) grouped"
+                         : target.url.path)
+                        .font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                 }
                 Spacer()
                 Text(target.size.byteString)
                     .font(.callout.monospacedDigit().weight(.medium))
-                if let sel = model.selected {
+                if let sel = model.selected, !sel.isAggregate {
                     Button { model.reveal(sel) } label: { Image(systemName: "magnifyingglass") }
                         .help("Reveal in Finder")
                     Button { model.toggleMark(sel) } label: {
