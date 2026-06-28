@@ -95,10 +95,10 @@ private struct Sidebar: View {
                 ForEach(kids) { node in
                     Row(node: node,
                         fraction: Double(node.size) / Double(total),
-                        marked: model.isMarked(node))
+                        marked: model.isMarked(node),
+                        onHover: { model.hovered = $0 ? node : nil },
+                        onDrill: { model.drill(into: node) })
                         .tag(node.id)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { model.drill(into: node) }
                         .contextMenu { rowMenu(node) }
                 }
             }
@@ -132,6 +132,12 @@ private struct Row: View {
     let node: FileNode
     let fraction: Double
     let marked: Bool
+    let onHover: (Bool) -> Void
+    let onDrill: () -> Void
+
+    @State private var hovering = false
+
+    private var canDrill: Bool { node.isDirectory && !node.children.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -148,6 +154,16 @@ private struct Row: View {
                 Text(node.size.byteString)
                     .foregroundStyle(.secondary)
                     .font(.callout.monospacedDigit())
+                if canDrill {
+                    Button(action: onDrill) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open folder")
+                    .opacity(hovering ? 1 : 0.35)
+                }
             }
             GeometryReader { g in
                 Capsule().fill(.quaternary)
@@ -159,6 +175,9 @@ private struct Row: View {
             .frame(height: 3)
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onHover { h in hovering = h; onHover(h) }
+        .background(hovering ? Color.primary.opacity(0.06) : .clear)
     }
 }
 
