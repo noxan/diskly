@@ -244,6 +244,7 @@ private struct Sidebar: View {
                     Row(node: node,
                         fraction: Double(node.size) / Double(total),
                         marked: model.isMarked(node),
+                        highlighted: model.hovered === node,
                         onHover: { model.hovered = $0 ? node : nil },
                         onDrill: { model.drill(into: node) })
                         .tag(node.id)
@@ -280,6 +281,7 @@ private struct Row: View {
     let node: FileNode
     let fraction: Double
     let marked: Bool
+    let highlighted: Bool
     let onHover: (Bool) -> Void
     let onDrill: () -> Void
 
@@ -325,7 +327,7 @@ private struct Row: View {
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onHover { h in hovering = h; onHover(h) }
-        .background(hovering ? Color.primary.opacity(0.06) : .clear)
+        .background(hovering || highlighted ? Color.primary.opacity(0.06) : .clear)
     }
 }
 
