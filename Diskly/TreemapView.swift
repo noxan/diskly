@@ -148,14 +148,15 @@ struct TreemapView: View {
                 }
             }
             .contentShape(Rectangle())
-            .gesture(ExclusiveGesture(
-                SpatialTapGesture(count: 2).onEnded { e in
-                    if let t = hit(tiles, e.location) { onDrill(t.node) }
-                },
-                SpatialTapGesture(count: 1).onEnded { e in
-                    selected = hit(tiles, e.location)?.node
-                }
-            ))
+            // Select fires instantly on the first tap; double-tap also drills.
+            // (Not exclusive — exclusive makes the single tap wait out the
+            // double-click window, which is the delay we're killing.)
+            .gesture(SpatialTapGesture(count: 1).onEnded { e in
+                selected = hit(tiles, e.location)?.node
+            })
+            .gesture(SpatialTapGesture(count: 2).onEnded { e in
+                if let t = hit(tiles, e.location) { onDrill(t.node) }
+            })
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let p): hovered = hit(tiles, p)?.node
