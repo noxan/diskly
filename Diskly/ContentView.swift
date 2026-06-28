@@ -280,7 +280,7 @@ private struct Sidebar: View {
 @ViewBuilder
 func nodeContextMenu(_ model: AppModel, _ node: FileNode) -> some View {
     if node.isAggregate {
-        Text("^[\(node.aggregatedCount) small item](inflect: true) grouped")
+        Button("Open") { model.drill(into: node) }
     } else {
         if node.isDirectory && !node.children.isEmpty {
             Button("Drill In") { model.drill(into: node) }
@@ -313,7 +313,7 @@ private struct Row: View {
                       : (node.isDirectory ? "folder.fill" : "doc.fill"))
                     .foregroundStyle(marked ? Color.red : node.tileColor)
                     .imageScale(.small)
-                Text(node.isAggregate ? "Other — ^[\(node.aggregatedCount) item](inflect: true)" : node.name)
+                Text(node.isAggregate ? "Other — \(node.aggregatedCount) items" : node.name)
                     .lineLimit(1).truncationMode(.middle)
                     .strikethrough(marked, color: .red)
                     .foregroundStyle(node.isAggregate ? Color.secondary
@@ -433,7 +433,7 @@ private struct InfoBar: View {
                          : model.selected == nil ? "\(target.name) (total)" : target.name)
                         .font(.callout.weight(.medium)).lineLimit(1)
                     Text(target.isAggregate
-                         ? "^[\(target.aggregatedCount) small item](inflect: true) grouped"
+                         ? "\(target.aggregatedCount) small items grouped"
                          : target.url.path)
                         .font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)

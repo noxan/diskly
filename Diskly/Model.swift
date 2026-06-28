@@ -57,13 +57,14 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
         if let d = _display { return d }
         let kids = sortedChildren
         let result: [FileNode]
-        if kids.count > 12, size > 0 {
+        // Don't re-group inside an already-aggregated node — that would nest
+        // "Other" inside "Other" forever; show its items in full instead.
+        if !isAggregate, kids.count > 12, size > 0 {
             let threshold = Int64(Double(size) * 0.01)
             let bigCount = kids.prefix { $0.size >= threshold }.count
             let small = kids[bigCount...]
             if small.count >= 2 {
-                let total = small.reduce(Int64(0)) { $0 + $1.size }
-                let other = FileNode.aggregate(count: small.count, size: total, parent: self)
+                let other = FileNode.aggregate(of: Array(small), parent: self)
                 result = Array(kids[..<bigCount]) + [other]
             } else {
                 result = kids
@@ -77,12 +78,15 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
 
     func invalidate() { _sorted = nil; _display = nil }
 
-    /// The synthetic node standing in for the merged small-item tail.
-    static func aggregate(count: Int, size: Int64, parent: FileNode) -> FileNode {
+    /// The synthetic node standing in for the merged small-item tail. It carries
+    /// the real children, so it opens like any other folder.
+    static func aggregate(of children: [FileNode], parent: FileNode) -> FileNode {
         let url = parent.url.appendingPathComponent(".__diskly_other__")
-        let n = FileNode(url: url, name: "Other", isDirectory: false, size: size, parent: parent)
+        let total = children.reduce(Int64(0)) { $0 + $1.size }
+        let n = FileNode(url: url, name: "Other", isDirectory: true,
+                         size: total, children: children, parent: parent)
         n.isAggregate = true
-        n.aggregatedCount = count
+        n.aggregatedCount = children.count
         return n
     }
 }
