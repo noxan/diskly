@@ -396,7 +396,8 @@ private struct Detail: View {
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(.regularMaterial, in: Capsule())
                 .shadow(radius: 8, y: 2)
-                .padding(.top, 12)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
         .safeAreaInset(edge: .top) {
