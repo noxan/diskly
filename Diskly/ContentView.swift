@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppKit   // NSApp — read click count for double-click drilling
 
 struct ContentView: View {
     @State private var model = AppModel()
@@ -238,7 +239,17 @@ private struct Sidebar: View {
             let total = max(current.size, 1)
             List(selection: Binding(
                 get: { model.selected?.id },
-                set: { id in model.selected = kids.first { $0.id == id } }
+                set: { id in
+                    let node = kids.first { $0.id == id }
+                    // Double-click drills; single click just selects. Reading the
+                    // click count here keeps native List selection reliable —
+                    // custom row tap gestures intermittently swallow single clicks.
+                    if NSApp.currentEvent?.clickCount == 2, let node {
+                        model.drill(into: node)
+                    } else {
+                        model.selected = node
+                    }
+                }
             )) {
                 ForEach(kids) { node in
                     Row(node: node,
@@ -248,12 +259,13 @@ private struct Sidebar: View {
                         onDrill: { model.drill(into: node) })
                         .tag(node.id)
                         .listRowSeparator(.hidden)
-                        // Full-row hover fill matching the selection's extent.
-                        // Skip it when selected so the system selection shows.
+                        // Hover fill sized/shaped to match the native selection
+                        // highlight (skipped when selected so the system draws it).
                         .listRowBackground(
                             model.hovered === node && model.selected !== node
-                            ? RoundedRectangle(cornerRadius: 6)
+                            ? RoundedRectangle(cornerRadius: 5)
                                 .fill(Color.primary.opacity(0.08))
+                                .padding(.vertical, 2)
                             : nil
                         )
                         .contextMenu { rowMenu(node) }
@@ -345,9 +357,6 @@ private struct Row: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        // Simultaneous so it rides alongside the List's native single-click
-        // selection instead of stalling it (a plain count:2 tap blocks singles).
-        .simultaneousGesture(TapGesture(count: 2).onEnded(onDrill))
         .onHover { h in hovering = h; onHover(h) }
     }
 }
