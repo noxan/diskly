@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import AppKit   // NSApp — read click count for double-click drilling
 
 struct ContentView: View {
     @State private var model = AppModel()
@@ -240,15 +239,10 @@ private struct Sidebar: View {
             List(selection: Binding(
                 get: { model.selected?.id },
                 set: { id in
-                    let node = kids.first { $0.id == id }
-                    // Double-click drills; single click just selects. Reading the
-                    // click count here keeps native List selection reliable —
-                    // custom row tap gestures intermittently swallow single clicks.
-                    if NSApp.currentEvent?.clickCount == 2, let node {
-                        model.drill(into: node)
-                    } else {
-                        model.selected = node
-                    }
+                    // Single click selects; drilling is handled by the row's
+                    // double-tap gesture so it also fires on the already-
+                    // selected row (where this setter wouldn't be called).
+                    model.selected = kids.first { $0.id == id }
                 }
             )) {
                 ForEach(kids) { node in
@@ -258,6 +252,16 @@ private struct Sidebar: View {
                         onHover: { model.hovered = $0 ? node : nil },
                         onDrill: { model.drill(into: node) })
                         .tag(node.id)
+                        // A gesture over the row hit-tests its content area, so it
+                        // must handle BOTH clicks — otherwise single clicks there
+                        // get swallowed and only margin clicks select. Double also
+                        // drills the already-selected row (the setter won't fire).
+                        .simultaneousGesture(TapGesture(count: 1).onEnded {
+                            model.selected = node
+                        })
+                        .simultaneousGesture(TapGesture(count: 2).onEnded {
+                            model.drill(into: node)
+                        })
                         .listRowSeparator(.hidden)
                         // Hover fill sized/shaped to match the native selection
                         // highlight (skipped when selected so the system draws it).
