@@ -378,6 +378,7 @@ private struct Detail: View {
                             onDrill: { model.drill(into: $0) },
                             onToggleMark: { model.toggleMark($0) },
                             menu: { nodeContextMenu(model, $0) })
+                    .padding(6)
             } else if !model.isScanning {
                 ContentUnavailableView("Empty folder", systemImage: "tray")
             }
