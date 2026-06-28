@@ -241,8 +241,12 @@ private struct Detail: View {
 
             if model.isScanning {
                 Rectangle().fill(.regularMaterial)
-                ProgressView("Scanning… \(model.scannedCount.formatted()) items")
-                    .controlSize(.large)
+                VStack(spacing: 14) {
+                    ProgressView("Scanning… \(model.scannedCount.formatted()) items")
+                        .controlSize(.large)
+                    Button("Cancel") { model.cancelScan() }
+                        .keyboardShortcut(.cancelAction)
+                }
             }
         }
         .safeAreaInset(edge: .top) {

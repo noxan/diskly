@@ -91,6 +91,7 @@ nonisolated enum Scanner {
     /// Populate a directory node: plain files inline; subdirectories in parallel
     /// while gate slots are free, otherwise recursed inline.
     private static func build(_ node: FileNode, gate: ScanGate, progress: ScanProgress) async {
+        if Task.isCancelled { return }       // bail fast when the scan is cancelled
         let contents = (try? FileManager.default.contentsOfDirectory(
             at: node.url, includingPropertiesForKeys: Array(keys),
             options: [])) ?? []
@@ -171,7 +172,10 @@ final class AppModel {
     /// reads and trashing work across the session. Released on next scan.
     private var accessedURL: URL?
 
+    private var scanTask: Task<Void, Never>?
+
     private func scan(_ url: URL) {
+        scanTask?.cancel()
         accessedURL?.stopAccessingSecurityScopedResource()
         accessedURL = url.startAccessingSecurityScopedResource() ? url : nil
         isScanning = true
@@ -179,8 +183,9 @@ final class AppModel {
         selected = nil
         marked.removeAll()
         let progress = ScanProgress()
-        Task.detached(priority: .userInitiated) {
+        scanTask = Task.detached(priority: .userInitiated) {
             let tree = await Scanner.scan(url, progress: progress)
+            if Task.isCancelled { return }       // discard a cancelled scan
             await MainActor.run {
                 self.root = tree
                 self.path = []
@@ -194,6 +199,20 @@ final class AppModel {
                 scannedCount = progress.count
                 try? await Task.sleep(for: .milliseconds(100))
             }
+        }
+    }
+
+    /// Cancel an in-flight scan, keeping whatever was on screen before it.
+    func cancelScan() {
+        scanTask?.cancel()
+        isScanning = false
+        // Re-grant access to the still-displayed root (the cancelled scan may
+        // have swapped the security scope to a different folder).
+        accessedURL?.stopAccessingSecurityScopedResource()
+        if let u = root?.url, u.startAccessingSecurityScopedResource() {
+            accessedURL = u
+        } else {
+            accessedURL = nil
         }
     }
 
