@@ -17,6 +17,7 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
         } detail: {
             Detail(model: model)
+                .toolbar(removing: model.root == nil ? .sidebarToggle : nil)
         }
         .onChange(of: model.root == nil) { _, empty in
             columns = empty ? .detailOnly : .all
