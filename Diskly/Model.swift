@@ -134,6 +134,67 @@ nonisolated final class ScanGate: @unchecked Sendable {
     func release() { lock.lock(); active -= 1; lock.unlock() }
 }
 
+/// (device, inode) key for a filesystem directory. Firmlinks and bind mounts
+/// expose the same physical directory via multiple paths; this lets the scanner
+/// recognize "already walked" regardless of which path led there.
+nonisolated private struct InodeKey: Hashable, Sendable {
+    let dev: UInt64; let ino: UInt64
+}
+
+/// Guards against walking the same physical directory twice. macOS Catalina+
+/// splits the boot disk into a read-only System volume ("/") and a writable
+/// Data volume ("/System/Volumes/Data") connected by firmlinks: every path
+/// "/System/Volumes/Data/<X>" is also reachable as "/<X>" — same device, same
+/// inode. Without this guard, scanning "/" walks the Data volume twice and the
+/// reported total exceeds the disk size. The firmlink source (e.g. "/Users")
+/// is the canonical, user-facing path, so we always skip its Data-volume
+/// counterpart; the (dev, ino) set also catches bind mounts and "/Volumes"
+/// re-entry loops.
+nonisolated final class DirRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var seen: Set<InodeKey> = []
+    /// Subpaths of the Data volume that have a firmlink source at "/" — these
+    /// are walked via their firmlink path, never via the Data mount path.
+    private let firmlinkTargets: Set<String>
+
+    init() {
+        self.firmlinkTargets = Self.loadFirmlinkTargets()
+    }
+
+    /// True if `url` should be recursed into. Returns false for:
+    /// - the Data-volume side of a firmlink (the "/" side handles it), and
+    /// - any directory whose (device, inode) was already walked.
+    func shouldWalk(_ url: URL) -> Bool {
+        let dataMount = "/System/Volumes/Data/"
+        let p = url.path
+        if p.hasPrefix(dataMount) {
+            let rest = String(p.dropFirst(dataMount.count))
+            // Exact match on the firmlink target (right column of
+            // /usr/share/firmlinks) — handles nested targets like
+            // "System/Library/Caches", not just top-level ones.
+            if firmlinkTargets.contains(rest) { return false }
+        }
+        var st = stat()
+        guard stat(p, &st) == 0 else { return true }   // unreadable → just walk it
+        let key = InodeKey(dev: UInt64(st.st_dev), ino: UInt64(st.st_ino))
+        lock.lock(); defer { lock.unlock() }
+        return seen.insert(key).inserted
+    }
+
+    /// Targets (right column) of "/usr/share/firmlinks", loaded once per scan.
+    static func loadFirmlinkTargets() -> Set<String> {
+        guard let text = try? String(contentsOfFile: "/usr/share/firmlinks",
+                                      encoding: .utf8) else { return [] }
+        var out = Set<String>()
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: "\t")
+            guard parts.count == 2 else { continue }
+            out.insert(String(parts[1]))
+        }
+        return out
+    }
+}
+
 nonisolated enum Scanner {
     /// One directory entry: name, type, and allocated size — everything the scan
     /// needs, all from a single bulk syscall (no per-file stat).
@@ -213,6 +274,7 @@ nonisolated enum Scanner {
     static func scanStreaming(_ root: URL, parent: FileNode, progress: ScanProgress,
                               onChild: @escaping @Sendable (FileNode) -> Void) async {
         let gate = ScanGate(limit: ProcessInfo.processInfo.activeProcessorCount)
+        let registry = DirRegistry()        // kills firmlink / bind-mount double counts
         let contents = entries(of: root.path)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
         await withTaskGroup(of: Void.self) { group in
@@ -222,7 +284,7 @@ nonisolated enum Scanner {
                     let child = FileNode(url: root.appendingPathComponent(e.name),
                                          name: e.name, isDirectory: e.isDir, parent: parent)
                     if e.isDir && !e.isLink {
-                        await build(child, gate: gate, progress: progress)
+                        await build(child, gate: gate, progress: progress, registry: registry)
                     } else {
                         child.size = e.size
                     }
@@ -235,8 +297,15 @@ nonisolated enum Scanner {
 
     /// Populate a directory node: plain files inline; subdirectories in parallel
     /// while gate slots are free, otherwise recursed inline.
-    private static func build(_ node: FileNode, gate: ScanGate, progress: ScanProgress) async {
+    private static func build(_ node: FileNode, gate: ScanGate, progress: ScanProgress,
+                              registry: DirRegistry) async {
         if Task.isCancelled { return }       // bail fast when the scan is cancelled
+        // Skip a physical directory we've already walked. Firmlinks expose the
+        // same inode via multiple paths (e.g. /Users and /System/Volumes/Data/Users);
+        // recursing into both double-counts every byte on the Data volume. The
+        // node stays in the tree (path visible) but its subtree is not walked,
+        // so its size stays 0.
+        guard registry.shouldWalk(node.url) else { return }
         let contents = entries(of: node.url.path)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
 
@@ -251,12 +320,12 @@ nonisolated enum Scanner {
                 if e.isDir && !e.isLink {
                     if gate.tryAcquire() {
                         group.addTask {
-                            await build(child, gate: gate, progress: progress)
+                            await build(child, gate: gate, progress: progress, registry: registry)
                             gate.release()
                             return child
                         }
                     } else {
-                        await build(child, gate: gate, progress: progress)
+                        await build(child, gate: gate, progress: progress, registry: registry)
                         kids.append(child)
                     }
                 } else {
