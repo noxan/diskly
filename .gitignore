@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+# User state — never commit (per-developer, machine-specific)
+*.xcuserstate
+xcuserdata/
+*.xcuserdatad/
+*.xcuserdatad
+
+# Build outputs
+build/
+DerivedData/
+*.xcarchive
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+# NOTE: For an *app*, commit Package.resolved for reproducible builds.
+# For a *library*, uncomment the next line to ignore it.
+# Package.resolved
+
+# SPM local build artifacts
+.build/
+swiftpm/
+Packages/
+*.xctest
+*.lsscript
+
+# CocoaPods (if used)
+Pods/
+Podfile.lock
+
+# Carthage (if used)
+Carthage/Build/
+Carthage/Checkouts/
+
+# fastlane (if used)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code signing / provisioning (never commit identities)
+*.p12
+*.mobileprovision
+*.cer
+*.cert
+*.key
+*.pem
+
+# Personal Hotspot / other dev artifacts
+*.swp
+*.swo
+*~
+
+# OS-level
+.DS_Store
