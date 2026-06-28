@@ -123,10 +123,10 @@ struct TreemapView: View {
     let node: FileNode
     let version: Int
     @Binding var selected: FileNode?
+    @Binding var hovered: FileNode?
     let onDrill: (FileNode) -> Void
 
     @State private var cache = LayoutCache()
-    @State private var hovered: FileNode?
 
     var body: some View {
         GeometryReader { geo in

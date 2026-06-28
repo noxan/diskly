@@ -70,6 +70,10 @@ private struct Sidebar: View {
                     Row(node: node, fraction: Double(node.size) / Double(total))
                         .tag(node.id)
                         .contentShape(Rectangle())
+                        .onHover { isHovered in
+                            if isHovered { model.hovered = node }
+                            else if model.hovered === node { model.hovered = nil }
+                        }
                         .onTapGesture(count: 2) { model.drill(into: node) }
                         .contextMenu { rowMenu(node) }
                 }
@@ -137,6 +141,7 @@ private struct Detail: View {
                 TreemapView(node: current,
                             version: model.version,
                             selected: $model.selected,
+                            hovered: $model.hovered,
                             onDrill: { model.drill(into: $0) })
             } else if model.root != nil {
                 ContentUnavailableView("Empty folder", systemImage: "tray")

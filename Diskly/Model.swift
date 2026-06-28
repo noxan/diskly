@@ -110,6 +110,7 @@ final class AppModel {
     var root: FileNode?
     var path: [FileNode] = []          // navigation stack; last == folder on screen
     var selected: FileNode?
+    var hovered: FileNode?             // shared hover (sidebar ↔ treemap)
     var isScanning = false
     var version = 0                    // bumped on tree mutation to force redraw
 
