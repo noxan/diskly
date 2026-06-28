@@ -102,6 +102,19 @@ nonisolated final class ScanProgress: @unchecked Sendable {
     var count: Int { lock.lock(); defer { lock.unlock() }; return _count }
 }
 
+/// Holds fully-built top-level subtrees emitted by a streaming scan until the
+/// main actor drains them into the live tree. Each node is finished (immutable)
+/// before it lands here, so the published tree never races the scanner.
+nonisolated final class NodeBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [FileNode] = []
+    func append(_ n: FileNode) { lock.lock(); items.append(n); lock.unlock() }
+    func drain() -> [FileNode] {
+        lock.lock(); defer { items.removeAll(); lock.unlock() }
+        return items
+    }
+}
+
 /// Caps how many directory subtrees scan concurrently. Unbounded fan-out
 /// (one task per directory) regresses on trees with many tiny dirs — e.g.
 /// node_modules — where scheduler overhead swamps the work; bounded to
@@ -123,14 +136,38 @@ nonisolated enum Scanner {
     private static let keys: Set<URLResourceKey> =
         [.isDirectoryKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
 
-    /// Scan a directory tree. Directory subtrees scan concurrently (bounded by
-    /// `ScanGate`), so one large subtree no longer pins a single core.
-    static func scan(_ root: URL, progress: ScanProgress) async -> FileNode {
-        let node = FileNode(url: root, name: root.lastPathComponent,
-                            isDirectory: true, parent: nil)
+    /// Scan `root`'s contents, emitting each top-level child to `onChild` the
+    /// moment its whole subtree is built — so the UI can fill in progressively.
+    /// `parent` is the live root node the children attach to; the scanner only
+    /// ever hands back finished, immutable subtrees, so it never touches the
+    /// published tree (the caller appends them on the main actor).
+    /// ponytail: one task per top-level entry — fine for normal roots; a root
+    /// with tens of thousands of loose top-level files would over-spawn.
+    static func scanStreaming(_ root: URL, parent: FileNode, progress: ScanProgress,
+                              onChild: @escaping @Sendable (FileNode) -> Void) async {
         let gate = ScanGate(limit: ProcessInfo.processInfo.activeProcessorCount)
-        await build(node, gate: gate, progress: progress)
-        return node
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: Array(keys), options: [])) ?? []
+        progress.add(contents.count)
+        await withTaskGroup(of: Void.self) { group in
+            for url in contents {
+                group.addTask {
+                    if Task.isCancelled { return }
+                    let v = try? url.resourceValues(forKeys: keys)
+                    let isDir = v?.isDirectory ?? false
+                    let isLink = v?.isSymbolicLink ?? false
+                    let child = FileNode(url: url, name: url.lastPathComponent,
+                                         isDirectory: isDir, parent: parent)
+                    if isDir && !isLink {
+                        await build(child, gate: gate, progress: progress)
+                    } else {
+                        child.size = Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
+                    }
+                    if Task.isCancelled { return }
+                    onChild(child)
+                }
+            }
+        }
     }
 
     /// Populate a directory node: plain files inline; subdirectories in parallel
@@ -290,25 +327,46 @@ final class AppModel {
         isScanning = true
         scannedCount = 0
         selected = nil
+        hovered = nil
         marked.removeAll()
+        // Publish an empty root now so results show as they stream in.
+        let tree = FileNode(url: url, name: url.lastPathComponent,
+                            isDirectory: true, parent: nil)
+        root = tree
+        path = []
+        version += 1
         let progress = ScanProgress()
+        let buffer = NodeBuffer()
         scanTask = Task.detached(priority: .userInitiated) {
-            let tree = await Scanner.scan(url, progress: progress)
-            if Task.isCancelled { return }       // discard a cancelled scan
+            await Scanner.scanStreaming(url, parent: tree, progress: progress) {
+                buffer.append($0)
+            }
+            if Task.isCancelled { return }
             await MainActor.run {
-                self.root = tree
-                self.path = []
+                self.attach(buffer.drain(), to: tree)   // final flush
                 self.isScanning = false
                 self.version += 1
             }
         }
-        // Poll the counter on the main actor while the scan runs.
+        // Drain finished subtrees into the live tree (and poll the counter)
+        // on the main actor, coalescing redraws to ~10fps.
         Task { @MainActor in
             while isScanning {
                 scannedCount = progress.count
+                attach(buffer.drain(), to: tree)
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
+    }
+
+    /// Append freshly-built subtrees to the live root, growing its size and
+    /// refreshing the views. No-op when nothing new arrived.
+    private func attach(_ children: [FileNode], to root: FileNode) {
+        guard !children.isEmpty else { return }
+        root.children.append(contentsOf: children)
+        root.size += children.reduce(0) { $0 + $1.size }
+        root.invalidate()
+        version += 1
     }
 
     /// Cancel an in-flight scan, keeping whatever was on screen before it.

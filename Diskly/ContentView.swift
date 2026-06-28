@@ -368,7 +368,7 @@ private struct Detail: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             if let current = model.current, !current.children.isEmpty {
                 TreemapView(node: current,
                             version: model.version,
@@ -378,18 +378,24 @@ private struct Detail: View {
                             onDrill: { model.drill(into: $0) },
                             onToggleMark: { model.toggleMark($0) },
                             menu: { nodeContextMenu(model, $0) })
-            } else {
+            } else if !model.isScanning {
                 ContentUnavailableView("Empty folder", systemImage: "tray")
             }
 
+            // Non-blocking pill so results stream in visibly behind it.
             if model.isScanning {
-                Rectangle().fill(.regularMaterial)
-                VStack(spacing: 14) {
-                    ProgressView("Scanning… \(model.scannedCount.formatted()) items")
-                        .controlSize(.large)
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Scanning… \(model.scannedCount.formatted()) items")
+                        .font(.callout)
                     Button("Cancel") { model.cancelScan() }
+                        .controlSize(.small)
                         .keyboardShortcut(.cancelAction)
                 }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(radius: 8, y: 2)
+                .padding(.top, 12)
             }
         }
         .safeAreaInset(edge: .top) {
