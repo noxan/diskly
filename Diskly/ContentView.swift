@@ -106,13 +106,18 @@ private struct Welcome: View {
             }
             .frame(width: columnWidth)
 
-            if !model.recents.isEmpty {
+            // Hide recents that are already one click away as a disk or quick item.
+            let pinned = Set((DiskVolume.all.map(\.url) + QuickLocation.all.map(\.url))
+                .map(\.standardizedFileURL))
+            let recents = model.recents.filter { !pinned.contains($0.url.standardizedFileURL) }
+
+            if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("RECENT")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
-                    ForEach(model.recents) { r in
+                    ForEach(recents) { r in
                         Button { model.scanRecent(r) } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "folder").foregroundStyle(.tint)
