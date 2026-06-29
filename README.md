@@ -6,6 +6,11 @@ Pick a folder and Diskly draws a squarified treemap of what's eating your space,
 with a sortable size breakdown alongside it. Mark the junk, review it, send it to
 the Trash in one pass.
 
+## Install
+
+Download the latest build from [GitHub releases](https://github.com/noxan/diskly/releases/latest),
+unzip it, and drag Diskly to Applications.
+
 ## Features
 
 - **Treemap** — every file sized by disk usage, colored by type; click to select,
@@ -18,10 +23,10 @@ the Trash in one pass.
 
 ## Build & run
 
-Open `Diskly.xcodeproj` in Xcode and run (⌘R), or:
-
 ```sh
-xcodebuild -project Diskly.xcodeproj -scheme Diskly -configuration Debug build
+make open      # build and launch
+make share     # build a zip to share with others
+make dist      # signed + notarized release (needs config.mk)
 ```
 
 Requires macOS 26+ and Xcode 26+. The app is sandboxed and only accesses folders
