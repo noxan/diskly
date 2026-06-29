@@ -6,6 +6,21 @@ Pick a folder and Diskly draws a squarified treemap of what's eating your space,
 with a sortable size breakdown alongside it. Mark the junk, review it, send it to
 the Trash in one pass.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="assets/screenshot-home.png" alt="Home" width="480"></td>
+    <td><img src="assets/screenshot-scan.png" alt="Scan" width="480"></td>
+    <td><img src="assets/screenshot-delete.png" alt="Delete" width="480"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Home</sub></td>
+    <td align="center"><sub>Scan</sub></td>
+    <td align="center"><sub>Delete</sub></td>
+  </tr>
+</table>
+
 ## Install
 
 Download the latest build from [GitHub releases](https://github.com/noxan/diskly/releases/latest),
