@@ -53,7 +53,8 @@ dist: sign notarize staple verify
 	@echo "Distributed: $(ZIP_DIST) — signed + notarized, ready for anyone to open."
 
 clean:
-	rm -rf $(BUILD_DIR) $(ZIP_SHARE) $(ZIP_DIST)
+	-@if [ -d $(BUILD_DIR) ]; then mv $(BUILD_DIR) $(BUILD_DIR).old && (rm -rf $(BUILD_DIR).old &); fi
+	rm -f $(ZIP_SHARE) $(ZIP_DIST)
 
 build: clean
 	xcodebuild -project $(PROJECT) -target $(TARGET) -configuration Release \
