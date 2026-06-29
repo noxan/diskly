@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import Synchronization
 
 // MARK: - Display name
 
@@ -115,24 +116,27 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
 /// Live item counter shared with the running scan. Locked per directory (not
 /// per file) so counting adds no measurable cost to the hot path.
 nonisolated final class ScanProgress: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _count = 0
-    private var _bytes: Int64 = 0
-    func add(_ n: Int, bytes: Int64 = 0) { lock.lock(); _count += n; _bytes += bytes; lock.unlock() }
-    var count: Int { lock.lock(); defer { lock.unlock() }; return _count }
-    var bytes: Int64 { lock.lock(); defer { lock.unlock() }; return _bytes }
+    private struct State { var count = 0; var bytes: Int64 = 0 }
+    private let state = Mutex(State())
+    func add(_ n: Int, bytes: Int64 = 0) {
+        state.withLock { $0.count += n; $0.bytes += bytes }
+    }
+    var count: Int { state.withLock { $0.count } }
+    var bytes: Int64 { state.withLock { $0.bytes } }
 }
 
 /// Holds fully-built top-level subtrees emitted by a streaming scan until the
 /// main actor drains them into the live tree. Each node is finished (immutable)
 /// before it lands here, so the published tree never races the scanner.
 nonisolated final class NodeBuffer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var items: [FileNode] = []
-    func append(_ n: FileNode) { lock.lock(); items.append(n); lock.unlock() }
+    private let items = Mutex([FileNode]())
+    func append(_ n: FileNode) { items.withLock { $0.append(n) } }
     func drain() -> [FileNode] {
-        lock.lock(); defer { items.removeAll(); lock.unlock() }
-        return items
+        items.withLock { buf in
+            let out = buf
+            buf.removeAll()
+            return out
+        }
     }
 }
 
@@ -141,16 +145,16 @@ nonisolated final class NodeBuffer: @unchecked Sendable {
 /// node_modules — where scheduler overhead swamps the work; bounded to
 /// ~core count it's ~2× faster on deep trees with no regression on wide ones.
 nonisolated final class ScanGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var active = 0
+    private let active = Mutex(0)
     private let limit: Int
     init(limit: Int) { self.limit = limit }
     func tryAcquire() -> Bool {
-        lock.lock(); defer { lock.unlock() }
-        if active < limit { active += 1; return true }
-        return false
+        active.withLock { a in
+            if a < limit { a += 1; return true }
+            return false
+        }
     }
-    func release() { lock.lock(); active -= 1; lock.unlock() }
+    func release() { active.withLock { $0 -= 1 } }
 }
 
 nonisolated enum Scanner {
