@@ -26,6 +26,10 @@ the Trash in one pass.
 Download the latest build from [GitHub releases](https://github.com/noxan/diskly/releases/latest),
 unzip it, and drag Diskly to Applications.
 
+The first time you run Diskly, macOS may show "Apple could not verify it is free of
+malware." To bypass it: right-click Diskly in Applications → **Open** → **Open** in the
+prompt, or go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
 ## Features
 
 - **Treemap** — every file sized by disk usage, colored by type; click to select,
