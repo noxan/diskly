@@ -5,23 +5,95 @@ BUILD_DIR    = build
 APP_BUNDLE   = $(BUILD_DIR)/Release/$(APP).app
 ZIP          = $(APP).zip
 
-.PHONY: share clean build zip open
+# --- Distribution (Developer ID signing + notarization) ----------------------
+# Fill these in once you have an Apple Developer certificate. Until then the
+# `dist` target refuses to run, leaving the project in a safe state.
+#
+#   DEVELOPER_ID  Your "Developer ID Application" signing identity name.
+#                 Find via: security find-identity -p codesigning -v
+#                 Example: "Developer ID Application: Rick Stromer (ABCDEFG123)"
+#
+#   NOTARY_KEY    Path to an App Store Connect API key (.p8) used to authenticate
+#                 notarization submissions. Create one at
+#                 https://appstoreconnect.apple.com/access/integrations/api
+#                 (create a Team Key with "App Manager" role).
+#
+#   NOTARY_KEY_ID The 10-char Key ID printed on that API key page.
+#
+#   NOTARY_ISSUER The Issuer ID from the same API key page.
+#
+# All four can be overridden on the command line:
+#   make dist DEVELOPER_ID="..." NOTARY_KEY=AuthKey.p8 NOTARY_KEY_ID=... NOTARY_ISSUER=...
+# Or set them once in a local `config.mk` (gitignored) and they'll be picked up.
+-include config.mk
+DEVELOPER_ID   ?=
+NOTARY_KEY     ?=
+NOTARY_KEY_ID  ?=
+NOTARY_ISSUER  ?=
 
-# Build a Release .app, zip it for sharing (ad-hoc signed, internal use only).
-share: zip
+ZIP_SHARE = $(APP)-share.zip
+ZIP_DIST  = $(APP)-dist.zip
+
+.PHONY: share dist sign notarize staple verify clean build zip open
+
+# --- Internal testing: ad-hoc build zipped for sharing -----------------------
+# Build a Release .app, zip it for sharing. Recipients bypass Gatekeeper with
+# right-click → Open the first time.
+share: clean build
+	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP_SHARE)"
 	@echo
-	@echo "Built: $(ZIP)"
+	@echo "Built: $(ZIP_SHARE)"
 	@echo "Recipients: right-click the app → Open the first time to bypass Gatekeeper."
 
+# --- Distribution: Developer ID sign → notarize → staple → verify → zip ------
+# Ready to run once DEVELOPER_ID and NOTARY_* are filled in (via config.mk).
+dist: sign notarize staple verify
+	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP_DIST)"
+	@echo
+	@echo "Distributed: $(ZIP_DIST) — signed + notarized, ready for anyone to open."
+
 clean:
-	rm -rf $(BUILD_DIR) $(ZIP)
+	rm -rf $(BUILD_DIR) $(ZIP_SHARE) $(ZIP_DIST)
 
 build: clean
 	xcodebuild -project $(PROJECT) -target $(TARGET) -configuration Release \
 	  SYMROOT=$(PWD)/$(BUILD_DIR) OBJROOT=$(PWD)/$(BUILD_DIR)/Intermediates build
 
-zip: build
-	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP)"
+# Sign the built bundle with the Developer ID Application identity.
+sign: build
+	@if [ -z "$(DEVELOPER_ID)" ]; then \
+	  echo "Set DEVELOPER_ID before running 'make dist'." >&2; \
+	  echo "Put it in config.mk (see Makefile comments). Run-time check: security find-identity -p codesigning -v" >&2; \
+	  exit 2; \
+	fi
+	@echo "Signing with: $(DEVELOPER_ID)"
+	codesign --force --deep --options runtime \
+	  --sign "$(DEVELOPER_ID)" "$(APP_BUNDLE)"
 
+# Submit the signed bundle for notarization and wait for Apple's verdict.
+notarize: sign
+	@if [ -z "$(NOTARY_KEY)" ] || [ -z "$(NOTARY_KEY_ID)" ] || [ -z "$(NOTARY_ISSUER)" ]; then \
+	  echo "Set NOTARY_KEY, NOTARY_KEY_ID, NOTARY_ISSUER (via config.mk) before notarizing." >&2; \
+	  exit 2; \
+	fi
+	@echo "Submitting $(APP_BUNDLE) for notarization…"
+	ditto -c -k --keepParent "$(APP_BUNDLE)" /tmp/$(APP)-notary.zip
+	xcrun notarytool submit /tmp/$(APP)-notary.zip \
+	  --key "$(NOTARY_KEY)" --key-id "$(NOTARY_KEY_ID)" --issuer "$(NOTARY_ISSUER)" \
+	  --wait
+	rm -f /tmp/$(APP)-notary.zip
+
+# Staple the notarization ticket onto the bundle.
+staple: notarize
+	xcrun stapler staple "$(APP_BUNDLE)"
+
+# Verify signature and Gatekeeper acceptance after stapling.
+verify: staple
+	@echo "Verifying signature + notarization…"
+	codesign --verify --strict --verbose=2 "$(APP_BUNDLE)"
+	spctl -a -v -t exec "$(APP_BUNDLE)"
+	xcrun stapler validate "$(APP_BUNDLE)"
+
+# Quick local run of the just-built app.
 open: build
 	open "$(APP_BUNDLE)"

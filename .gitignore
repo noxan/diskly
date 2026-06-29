@@ -17,6 +17,7 @@ xcuserdata/
 build/
 DerivedData/
 *.zip
+config.mk
 *.xcarchive
 *.xcworkspace/xcuserdata/
 
