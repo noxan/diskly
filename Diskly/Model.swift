@@ -10,18 +10,21 @@ import AppKit
 
 // MARK: - Display name
 
-/// Resolve a human-friendly name for `url`. For a volume root (whose
-/// `lastPathComponent` is empty, e.g. the boot volume "/"), return the
-/// volume's localized name (e.g. "Macintosh HD") instead of the literal "/".
+/// Resolve a human-friendly name for `url`. For a volume root (the boot
+/// volume "/", or any mounted volume under /Volumes), return the volume's
+/// localized name (e.g. "Macintosh HD") instead of the literal path.
 func displayName(for url: URL) -> String {
-    let leaf = url.lastPathComponent
-    if !leaf.isEmpty { return leaf }
-    let keys: Set<URLResourceKey> = [.volumeNameKey]
+    // Volume roots: "/" (boot) and "/Volumes/<name>" (mounted). For these,
+    // lastPathComponent is "/" or the volume name but we want the volume's
+    // own localized label, not the bare path component.
+    let keys: Set<URLResourceKey> = [.isVolumeKey, .volumeLocalizedNameKey]
     if let v = try? url.resourceValues(forKeys: keys),
-       let name = v.volumeName, !name.isEmpty {
+       v.isVolume == true,
+       let name = v.volumeLocalizedName, !name.isEmpty {
         return name
     }
-    return "/"
+    let leaf = url.lastPathComponent
+    return leaf.isEmpty ? "/" : leaf
 }
 
 // MARK: - File tree
