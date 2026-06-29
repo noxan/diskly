@@ -11,7 +11,7 @@ set -euo pipefail
 APP="Diskly"
 PROJECT="Diskly.xcodeproj"
 PBXPROJ="$PROJECT/project.pbxproj"
-SHARE_ZIP="$APP-share.zip"
+DIST_ZIP="$APP-dist.zip"
 
 err()  { echo "error: $*" >&2; exit 1; }
 info() { echo "▸ $*"; }
@@ -100,19 +100,19 @@ info "Setting version $NEW_VER (build $NEW_BUILD)"
 sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = $NEW_VER;/" "$PBXPROJ"
 sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = $NEW_BUILD;/" "$PBXPROJ"
 
-# --- 2. Build + zip (ad-hoc signed, no notarization) ---
-info "Building Release"
+# --- 2. Build + sign + notarize + staple ---
+info "Building, signing, and notarizing Release"
 BUILD_LOG=$(mktemp)
-if ! make share > "$BUILD_LOG" 2>&1; then
+if ! make dist > "$BUILD_LOG" 2>&1; then
   tail -30 "$BUILD_LOG" >&2
   rm -f "$BUILD_LOG"
   err "build failed"
 fi
 rm -f "$BUILD_LOG"
-[[ -f "$SHARE_ZIP" ]] || err "build finished but $SHARE_ZIP not found"
+[[ -f "$DIST_ZIP" ]] || err "build finished but $DIST_ZIP not found"
 
 RELEASE_ZIP="$APP-v$NEW_VER.zip"
-mv "$SHARE_ZIP" "$RELEASE_ZIP"
+mv "$DIST_ZIP" "$RELEASE_ZIP"
 info "Built $RELEASE_ZIP"
 
 # --- 3. Commit + tag ---
