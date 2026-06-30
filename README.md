@@ -6,6 +6,12 @@ Pick a folder and Diskly draws a squarified treemap of what's eating your space,
 with a sortable size breakdown alongside it. Mark the junk, review it, send it to
 the Trash in one pass.
 
+<p>
+  <a href="https://github.com/noxan/diskly/releases/latest">
+    <img src="https://img.shields.io/badge/⬇%20Download%20Diskly-000000?style=for-the-badge&logo=apple" alt="Download Diskly">
+  </a>
+</p>
+
 ## Screenshots
 
 <table>
@@ -23,12 +29,14 @@ the Trash in one pass.
 
 ## Install
 
-Download the latest build from [GitHub releases](https://github.com/noxan/diskly/releases/latest),
-unzip it, and drag Diskly to Applications.
+1. **Download** the latest build from [GitHub releases][releases].
+2. **Unzip** it and **drag Diskly to Applications**.
 
 The first time you run Diskly, macOS may show "Apple could not verify it is free of
 malware." To bypass it: right-click Diskly in Applications → **Open** → **Open** in the
 prompt, or go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+[releases]: https://github.com/noxan/diskly/releases/latest
 
 ## Features
 
