@@ -45,7 +45,8 @@ On a 2024 MacBook Pro (M4, 11 cores) it walks `~/Library` (≈833k items,
 Reproduce on your own machine:
 
 ```sh
-swift bench/bench.swift ~/Library
+make bench                          # default: ~/Library
+make bench BENCH_PATH=~/Developer   # any folder
 ```
 
 A warm-up scan fills the page cache first, so every tool benefits equally

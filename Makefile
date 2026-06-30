@@ -34,7 +34,20 @@ NOTARY_ISSUER  ?=
 ZIP_SHARE = $(APP)-share.zip
 ZIP_DIST  = $(APP)-dist.zip
 
-.PHONY: share dist sign notarize staple verify clean build zip open
+# --- Benchmark: build Diskly's scanner against the cross-tool bench --------
+# `make bench` compiles bench/bench.swift + Diskly/Scanner.swift into
+# bench/bench (gitignored) and runs it. Override BENCH_PATH to scan a
+# different folder (default: ~/Library).
+BENCH_BIN   = bench/bench
+BENCH_PATH ?= ~/Library
+
+.PHONY: share dist sign notarize staple verify clean build zip open bench
+
+bench: $(BENCH_BIN)
+	./$(BENCH_BIN) "$(BENCH_PATH)"
+
+$(BENCH_BIN): bench/bench.swift Diskly/Scanner.swift
+	swiftc -O bench/bench.swift Diskly/Scanner.swift -o $(BENCH_BIN)
 
 # --- Internal testing: ad-hoc build zipped for sharing -----------------------
 # Build a Release .app, zip it for sharing. Recipients bypass Gatekeeper with
@@ -54,7 +67,7 @@ dist: sign notarize staple verify
 
 clean:
 	-@if [ -d $(BUILD_DIR) ]; then mv $(BUILD_DIR) $(BUILD_DIR).old && (rm -rf $(BUILD_DIR).old &); fi
-	rm -f $(ZIP_SHARE) $(ZIP_DIST)
+	rm -f $(ZIP_SHARE) $(ZIP_DIST) $(BENCH_BIN)
 
 build: clean
 	xcodebuild -project $(PROJECT) -target $(TARGET) -configuration Release \
