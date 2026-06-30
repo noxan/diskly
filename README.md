@@ -32,9 +32,10 @@ the Trash in one pass.
 1. **Download** the latest build from [GitHub releases][releases].
 2. **Unzip** it and **drag Diskly to Applications**.
 
-The first time you run Diskly, macOS may show "Apple could not verify it is free of
-malware." To bypass it: right-click Diskly in Applications → **Open** → **Open** in the
-prompt, or go to **System Settings → Privacy & Security** and click **Open Anyway**.
+Recent releases are signed and notarized, so macOS won't block them. If you hit an
+older unsigned build that shows "Apple could not verify it is free of malware":
+right-click Diskly in Applications → **Open** → **Open** in the prompt, or go to
+**System Settings → Privacy & Security** and click **Open Anyway**.
 
 [releases]: https://github.com/noxan/diskly/releases/latest
 
