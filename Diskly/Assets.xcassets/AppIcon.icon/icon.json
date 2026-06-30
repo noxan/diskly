@@ -4,16 +4,16 @@
   },
   "groups" : [
     {
+      "blur-material" : null,
       "layers" : [
         {
-          "hidden" : false,
-          "image-name" : "Image 2.png",
+          "image-name" : "Image.png",
           "name" : "Image",
           "position" : {
-            "scale" : 1.1,
+            "scale" : 0.9,
             "translation-in-points" : [
-              -0.453125,
-              16.96875
+              0,
+              0
             ]
           }
         }
@@ -24,7 +24,7 @@
       },
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.25
       }
     }
   ],
