@@ -24,7 +24,7 @@ sparkle_bin() {
   [[ -n "$f" ]] && dirname "$f"
 }
 
-current_version() { grep -m1 'MARKETING_VERSION' "$PBXPROJ" | sed 's/.*= *//;s/;.*//'; }
+current_version() { grep -m1 'MARKETING_VERSION' "$PBXPROJ" | sed 's/.*= *//;s/;.*//; s/^\([0-9]*\)\.\([0-9]*\)$/\1.\2.0/'; }
 current_build()   { grep -m1 'CURRENT_PROJECT_VERSION' "$PBXPROJ" | sed 's/.*= *//;s/;.*//'; }
 
 bump_version() {
@@ -36,11 +36,8 @@ bump_version() {
     minor) minor=$((minor+1)); patch=0 ;;
     patch) patch=$(( ${patch:-0} + 1 )) ;;
   esac
-  if [[ -n "${patch:-}" && "$patch" != "0" ]]; then
-    echo "$major.$minor.$patch"
-  else
-    echo "$major.$minor"
-  fi
+  patch="${patch:-0}"
+  echo "$major.$minor.$patch"
 }
 
 # --- Pre-flight ---
