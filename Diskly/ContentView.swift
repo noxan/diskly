@@ -12,18 +12,27 @@ struct ContentView: View {
     var body: some View {
         // ponytail: no NavigationSplitView until a folder is scanned — that's
         // what auto-generates the sidebar toggle. Welcome screen stands alone.
-        Group {
-            if model.root == nil {
-                Welcome(model: model)
-            } else {
-                NavigationSplitView(columnVisibility: $columns) {
-                    Sidebar(model: model)
-                        .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
-                } detail: {
-                    Detail(model: model)
+        ZStack {
+            Group {
+                if model.root == nil {
+                    Welcome(model: model)
+                } else {
+                    NavigationSplitView(columnVisibility: $columns) {
+                        Sidebar(model: model)
+                            .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
+                    } detail: {
+                        Detail(model: model)
+                    }
                 }
             }
+
+            // Finder-style Quick Look: floating, non-modal, tracks selection.
+            if model.previewing, let node = model.selected {
+                PreviewPanel(model: model, node: node)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
         }
+        .animation(.easeInOut(duration: 0.18), value: model.previewing)
         .toolbar { Toolbar(model: model) }
         .navigationTitle("Diskly")
         .alert("Trash failed", isPresented: Binding(
@@ -33,6 +42,9 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.lastError ?? "")
+        }
+        .onChange(of: model.selected) { _, new in
+            if new == nil { model.previewing = false }
         }
     }
 }
@@ -291,6 +303,7 @@ private struct Sidebar: View {
                 }
             }
             .listStyle(.inset)
+            .onKeyPress(.space) { model.togglePreview(); return .handled }
         } else {
             ContentUnavailableView {
                 Label("No folder scanned", systemImage: "internaldrive")
@@ -317,6 +330,8 @@ func nodeContextMenu(_ model: AppModel, _ node: FileNode) -> some View {
         if node.isDirectory && !node.children.isEmpty {
             Button("Drill In") { model.drill(into: node) }
         }
+        Button("Preview") { model.startPreview(node) }
+            .keyboardShortcut(" ", modifiers: [])
         Button("Reveal in Finder") { model.reveal(node) }
         Divider()
         Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
@@ -419,6 +434,7 @@ private struct Detail: View {
                             hovered: $model.hovered,
                             onDrill: { model.drill(into: $0) },
                             onToggleMark: { model.toggleMark($0) },
+                            onPreview: { model.togglePreview() },
                             menu: { nodeContextMenu(model, $0) })
                     .padding(6)
             } else if !model.isScanning {

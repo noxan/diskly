@@ -32,7 +32,7 @@ func displayName(for url: URL) -> String {
 
 /// A node in the scanned file tree. Plain class (not observed) — the tree is
 /// large; the UI observes `AppModel` and reads `AppModel.version` to refresh.
-nonisolated final class FileNode: Identifiable, @unchecked Sendable {
+nonisolated final class FileNode: Identifiable, Equatable, @unchecked Sendable {
     let url: URL
     let name: String
     let isDirectory: Bool
@@ -45,6 +45,8 @@ nonisolated final class FileNode: Identifiable, @unchecked Sendable {
     var aggregatedCount = 0
 
     var id: URL { url }
+
+    static func == (lhs: FileNode, rhs: FileNode) -> Bool { lhs === rhs }
 
     init(url: URL, name: String, isDirectory: Bool, size: Int64 = 0,
          children: [FileNode] = [], parent: FileNode?) {
@@ -238,6 +240,7 @@ final class AppModel {
     var scannedCount = 0               // live item count during a scan
     var scannedBytes: Int64 = 0        // live bytes seen during a scan
     var version = 0                    // bumped on tree mutation to force redraw
+    var previewing = false             // Quick Look panel open (tracks `selected`)
 
     var current: FileNode? { path.last ?? root }
 
@@ -477,6 +480,25 @@ final class AppModel {
     func reveal(_ node: FileNode) {
         guard !node.isAggregate else { return }
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
+    }
+
+    // MARK: Quick Look preview
+
+    /// Toggle the preview panel on the current selection. Space when open closes
+    /// it; space when closed opens it for the selected node (if previewable).
+    func togglePreview() {
+        if previewing { previewing = false }
+        else if let s = selected, !s.isAggregate { previewing = true }
+    }
+
+    func closePreview() { previewing = false }
+
+    /// Open the preview for a specific node (from the context menu). Selects the
+    /// node first so arrow-key navigation continues from it while the panel is open.
+    func startPreview(_ node: FileNode) {
+        guard !node.isAggregate else { return }
+        selected = node
+        previewing = true
     }
 
     // MARK: Mark-for-deletion flow

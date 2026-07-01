@@ -131,6 +131,7 @@ struct TreemapView<Menu: View>: View {
     @Binding var hovered: FileNode?
     let onDrill: (FileNode) -> Void
     let onToggleMark: (FileNode) -> Void
+    let onPreview: () -> Void
     @ViewBuilder let menu: (FileNode) -> Menu
 
     @State private var cache = LayoutCache()
@@ -186,6 +187,7 @@ struct TreemapView<Menu: View>: View {
             .onKeyPress(.upArrow)    { move(.up, tiles);    return .handled }
             .onKeyPress(.downArrow)  { move(.down, tiles);  return .handled }
             .onKeyPress(.return)     { if let s = selected { onDrill(s) }; return .handled }
+            .onKeyPress(.space)      { onPreview(); return .handled }
             .onKeyPress(.delete)        { toggleSelected(); return .handled }
             .onKeyPress(.deleteForward) { toggleSelected(); return .handled }
         }
