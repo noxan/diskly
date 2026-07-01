@@ -74,6 +74,9 @@ right-click Diskly in Applications → **Open** → **Open** in the prompt, or g
   Move to Trash together.
 - **Fast scans** — directories scanned in parallel across cores, with a live item
   count and Cancel.
+- **Automatic updates** — checks for new versions in the background and offers to
+  install on quit (via [Sparkle](https://sparkle-project.org)). A "Check for
+  Updates…" item lives in the app menu.
 
 ## Build & run
 

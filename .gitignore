@@ -20,6 +20,7 @@ DerivedData/
 config.mk
 *.xcarchive
 *.xcworkspace/xcuserdata/
+appcast.xml
 
 # Swift Package Manager
 # NOTE: For an *app*, commit Package.resolved for reproducible builds.
@@ -28,7 +29,6 @@ config.mk
 
 # SPM local build artifacts
 .build/
-swiftpm/
 Packages/
 *.xctest
 *.lsscript

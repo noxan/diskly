@@ -74,6 +74,9 @@ build: clean
 	  SYMROOT=$(PWD)/$(BUILD_DIR) OBJROOT=$(PWD)/$(BUILD_DIR)/Intermediates build
 
 # Sign the built bundle with the Developer ID Application identity.
+# Sparkle's Downloader.xpc is removed first — we hold the network.client
+# entitlement, so the service is never launched and --deep re-signing it
+# (which would strip its entitlements) is a non-issue. Trims the bundle too.
 sign: build
 	@if [ -z "$(DEVELOPER_ID)" ]; then \
 	  echo "Set DEVELOPER_ID before running 'make dist'." >&2; \
@@ -81,6 +84,7 @@ sign: build
 	  exit 2; \
 	fi
 	@echo "Signing with: $(DEVELOPER_ID)"
+	@rm -rf "$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
 	codesign --force --deep --options runtime \
 	  --sign "$(DEVELOPER_ID)" "$(APP_BUNDLE)"
 
