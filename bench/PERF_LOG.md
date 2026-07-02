@@ -56,6 +56,25 @@ below the machine's noise floor — not worth the complexity.
 2. Review + commit the working-tree changes (Scanner.swift, Model.swift,
    TreemapView.swift, bench/bench.swift, this file).
 
+## Post-conclusion finding: app scan ran ON THE MAIN THREAD (2026-07-02)
+
+User reported progressive UI freezes during scans. Profiling the real app
+(`sample` + Instruments Time Profiler while scanning) showed 85% of
+main-thread samples INSIDE Scanner.build/openat/getattrlistbulk: the target
+builds with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` +
+`SWIFT_APPROACHABLE_CONCURRENCY = YES`, under which the scan's async funcs
+and every task-group child they spawn ran main-actor — the app's scan was
+effectively serial on the UI thread. The bench never saw this because
+swiftc compiles without those flags: all bench numbers were real, but the
+app never got them.
+
+Fix: `@concurrent` on `Scanner.scanStreaming` and `Scanner.build`
+(Model.swift). Verified with a second profile: app CPU went ~50% → ~540%
+during a scan, and the main thread shows zero scan frames (idle event loop).
+
+Lesson: when a GUI target and a CLI harness share code, profile the GUI
+target too — build settings can change execution semantics.
+
 ## Ideas rejected as below noise / not worth it
 
 - ScanProgress/itemCount lock traffic (already per-dir).

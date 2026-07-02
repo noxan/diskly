@@ -165,6 +165,12 @@ extension Scanner {
     /// published tree (the caller appends them on the main actor).
     /// ponytail: one task per top-level entry — fine for normal roots; a root
     /// with tens of thousands of loose top-level files would over-spawn.
+    // @concurrent: the target builds with default-MainActor isolation +
+    // approachable concurrency, under which these async funcs (and every
+    // task-group child they spawn) otherwise run ON THE MAIN THREAD — a
+    // profiler showed 85% of main-thread time inside the scan, serializing
+    // it and freezing the UI. @concurrent pins them to the global executor.
+    @concurrent
     static func scanStreaming(_ root: URL, parent: FileNode, progress: ScanProgress,
                               onChild: @escaping @Sendable (FileNode) -> Void) async {
         let gate = ScanGate(limit: ProcessInfo.processInfo.activeProcessorCount)
@@ -199,6 +205,7 @@ extension Scanner {
     /// opened via openat(2) relative to the parent's fd (single-component path
     /// resolution — full-path open() was the measured scan bottleneck); the fd
     /// stays open until the subtree finishes so children can do the same.
+    @concurrent
     private static func build(_ node: FileNode, parentFD: Int32, name: String,
                               path: String,
                               gate: ScanGate, progress: ScanProgress,
