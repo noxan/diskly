@@ -51,17 +51,24 @@ $(BENCH_BIN): bench/bench.swift Diskly/Scanner.swift
 
 # --- Internal testing: ad-hoc build zipped for sharing -----------------------
 # Build a Release .app, zip it for sharing. Recipients bypass Gatekeeper with
-# right-click → Open the first time.
+# right-click → Open the first time. Uses zip -X --symlinks (see dist target
+# note) so the archive stays Gatekeeper-clean.
 share: clean build
-	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP_SHARE)"
+	cd "$(BUILD_DIR)/Release" && zip -qrX --symlinks "$$PWD/$(ZIP_SHARE)" "$(APP).app"
 	@echo
 	@echo "Built: $(ZIP_SHARE)"
 	@echo "Recipients: right-click the app → Open the first time to bypass Gatekeeper."
 
 # --- Distribution: Developer ID sign → notarize → staple → verify → zip ------
 # Ready to run once DEVELOPER_ID and NOTARY_* are filled in (via config.mk).
+# NB: zip -X --symlinks (not ditto) — ditto emits `._` AppleDouble companions
+# for any file carrying xattrs (e.g. com.apple.provenance stamped by LaunchServices
+# during signing). Those `._` files land inside Sparkle.framework/Updater.app and
+# break its sub-bundle seal, so Gatekeeper rejects the extracted archive with
+# "could not verify… free of malware". -X skips xattrs, --symlinks keeps the
+# framework's Versions/Current symlinks intact.
 dist: sign notarize staple verify
-	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP_DIST)"
+	cd "$(BUILD_DIR)/Release" && zip -qrX --symlinks "$$PWD/$(ZIP_DIST)" "$(APP).app"
 	@echo
 	@echo "Distributed: $(ZIP_DIST) — signed + notarized, ready for anyone to open."
 
