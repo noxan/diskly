@@ -33,29 +33,35 @@ func displayName(for url: URL) -> String {
 /// A node in the scanned file tree. Plain class (not observed) — the tree is
 /// large; the UI observes `AppModel` and reads `AppModel.version` to refresh.
 nonisolated final class FileNode: Identifiable, Equatable, @unchecked Sendable {
-    let url: URL
     let name: String
     let isDirectory: Bool
     var size: Int64
     var children: [FileNode]
     unowned let parent: FileNode?
+    /// Set only on parentless roots and the synthetic aggregate node. Every
+    /// other node derives its URL from the parent chain on demand — eagerly
+    /// building and storing a URL per node cost ~1.5s CPU per 850k nodes
+    /// (measured; 16× the cost of string concat) plus a URL object per node.
+    private let fixedURL: URL?
+
+    var url: URL { fixedURL ?? parent!.url.appendingPathComponent(name) }
 
     // Set on the synthetic "Other" node that merges the small-item tail.
     var isAggregate = false
     var aggregatedCount = 0
 
-    var id: URL { url }
+    var id: ObjectIdentifier { ObjectIdentifier(self) }
 
     static func == (lhs: FileNode, rhs: FileNode) -> Bool { lhs === rhs }
 
-    init(url: URL, name: String, isDirectory: Bool, size: Int64 = 0,
-         children: [FileNode] = [], parent: FileNode?) {
-        self.url = url
+    init(name: String, isDirectory: Bool, size: Int64 = 0,
+         children: [FileNode] = [], parent: FileNode?, fixedURL: URL? = nil) {
         self.name = name
         self.isDirectory = isDirectory
         self.size = size
         self.children = children
         self.parent = parent
+        self.fixedURL = fixedURL
     }
 
     private var _sorted: [FileNode]?
@@ -103,10 +109,10 @@ nonisolated final class FileNode: Identifiable, Equatable, @unchecked Sendable {
     /// The synthetic node standing in for the merged small-item tail. It carries
     /// the real children, so it opens like any other folder.
     static func aggregate(of children: [FileNode], parent: FileNode) -> FileNode {
-        let url = parent.url.appendingPathComponent(".__diskly_other__")
         let total = children.reduce(Int64(0)) { $0 + $1.size }
-        let n = FileNode(url: url, name: "Other", isDirectory: true,
-                         size: total, children: children, parent: parent)
+        let n = FileNode(name: "Other", isDirectory: true,
+                         size: total, children: children, parent: parent,
+                         fixedURL: parent.url.appendingPathComponent(".__diskly_other__"))
         n.isAggregate = true
         n.aggregatedCount = children.count
         return n
@@ -163,16 +169,21 @@ extension Scanner {
                               onChild: @escaping @Sendable (FileNode) -> Void) async {
         let gate = ScanGate(limit: ProcessInfo.processInfo.activeProcessorCount)
         let registry = DirRegistry()        // kills firmlink / bind-mount double counts
-        let contents = entries(of: root.path)
+        let rootPath = root.path
+        let rootFD = openDir(rootPath)
+        guard rootFD >= 0 else { return }
+        defer { close(rootFD) }             // group is awaited below, so fd outlives all openats
+        let contents = entries(fd: rootFD)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
         await withTaskGroup(of: Void.self) { group in
             for e in contents {
                 group.addTask {
                     if Task.isCancelled { return }
-                    let child = FileNode(url: root.appendingPathComponent(e.name),
-                                         name: e.name, isDirectory: e.isDir, parent: parent)
+                    let child = FileNode(name: e.name, isDirectory: e.isDir, parent: parent)
                     if e.isDir && !e.isLink {
-                        await build(child, gate: gate, progress: progress, registry: registry)
+                        await build(child, parentFD: rootFD, name: e.name,
+                                    path: rootPath + "/" + e.name,
+                                    gate: gate, progress: progress, registry: registry)
                     } else {
                         child.size = e.size
                     }
@@ -184,44 +195,71 @@ extension Scanner {
     }
 
     /// Populate a directory node: plain files inline; subdirectories in parallel
-    /// while gate slots are free, otherwise recursed inline.
-    private static func build(_ node: FileNode, gate: ScanGate, progress: ScanProgress,
+    /// while gate slots are free, otherwise recursed inline. The directory is
+    /// opened via openat(2) relative to the parent's fd (single-component path
+    /// resolution — full-path open() was the measured scan bottleneck); the fd
+    /// stays open until the subtree finishes so children can do the same.
+    private static func build(_ node: FileNode, parentFD: Int32, name: String,
+                              path: String,
+                              gate: ScanGate, progress: ScanProgress,
                               registry: DirRegistry) async {
         if Task.isCancelled { return }       // bail fast when the scan is cancelled
+        let fd = openDir(at: parentFD, name)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
         // Skip a physical directory we've already walked. Firmlinks expose the
         // same inode via multiple paths (e.g. /Users and /System/Volumes/Data/Users);
         // recursing into both double-counts every byte on the Data volume. The
         // node stays in the tree (path visible) but its subtree is not walked,
-        // so its size stays 0.
-        guard registry.shouldWalk(node.url) else { return }
-        let contents = entries(of: node.url.path)
+        // so its size stays 0. `path` is threaded down as a plain string —
+        // deriving it from node.url would rebuild the URL chain per directory.
+        guard registry.shouldWalk(path: path, fd: fd) else { return }
+        let contents = entries(fd: fd)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
 
         var kids: [FileNode] = []
         kids.reserveCapacity(contents.count)
 
-        await withTaskGroup(of: FileNode.self) { group in
-            for e in contents {
-                let child = FileNode(url: node.url.appendingPathComponent(e.name),
-                                     name: e.name, isDirectory: e.isDir, parent: node)
-                // Don't follow symlinks — avoids loops and double-counting.
-                if e.isDir && !e.isLink {
+        // Files inline; collect subdirs first so leaf dirs (most dirs) and
+        // single-subdir chains never pay for task-group setup. Symlinks are
+        // never followed — avoids loops and double-counting.
+        var dirs: [DirEntry] = []
+        for e in contents {
+            if e.isDir && !e.isLink {
+                dirs.append(e)
+            } else {
+                let child = FileNode(name: e.name, isDirectory: e.isDir, parent: node)
+                child.size = e.size
+                kids.append(child)
+            }
+        }
+        if dirs.count == 1 {
+            // One subdir: nothing to run in parallel with — recurse inline.
+            let e = dirs[0]
+            let child = FileNode(name: e.name, isDirectory: true, parent: node)
+            await build(child, parentFD: fd, name: e.name, path: path + "/" + e.name,
+                        gate: gate, progress: progress, registry: registry)
+            kids.append(child)
+        } else if dirs.count > 1 {
+            await withTaskGroup(of: FileNode.self) { group in
+                for e in dirs {
+                    let child = FileNode(name: e.name, isDirectory: true, parent: node)
+                    let childPath = path + "/" + e.name
                     if gate.tryAcquire() {
                         group.addTask {
-                            await build(child, gate: gate, progress: progress, registry: registry)
+                            await build(child, parentFD: fd, name: e.name, path: childPath,
+                                        gate: gate, progress: progress, registry: registry)
                             gate.release()
                             return child
                         }
                     } else {
-                        await build(child, gate: gate, progress: progress, registry: registry)
+                        await build(child, parentFD: fd, name: e.name, path: childPath,
+                                    gate: gate, progress: progress, registry: registry)
                         kids.append(child)
                     }
-                } else {
-                    child.size = e.size
-                    kids.append(child)
                 }
+                for await c in group { kids.append(c) }
             }
-            for await c in group { kids.append(c) }
         }
         node.children = kids
         node.size = kids.reduce(0) { $0 + $1.size }
@@ -348,8 +386,8 @@ final class AppModel {
         hovered = nil
         marked.removeAll()
         // Publish an empty root now so results show as they stream in.
-        let tree = FileNode(url: url, name: displayName(for: url),
-                            isDirectory: true, parent: nil)
+        let tree = FileNode(name: displayName(for: url),
+                            isDirectory: true, parent: nil, fixedURL: url)
         root = tree
         path = []
         version += 1
@@ -503,16 +541,17 @@ final class AppModel {
 
     // MARK: Mark-for-deletion flow
 
-    /// Items staged for trashing, keyed by URL.
-    var marked: [URL: FileNode] = [:]
+    /// Items staged for trashing, keyed by node identity (marks reference
+    /// live nodes of the current tree, so identity is the natural key).
+    var marked: [ObjectIdentifier: FileNode] = [:]
     var lastError: String?
 
-    func isMarked(_ node: FileNode) -> Bool { marked[node.url] != nil }
+    func isMarked(_ node: FileNode) -> Bool { marked[node.id] != nil }
 
     func toggleMark(_ node: FileNode) {
         guard node.parent != nil, !node.isAggregate else { return }
-        if marked[node.url] != nil { marked[node.url] = nil }
-        else { marked[node.url] = node }
+        if marked[node.id] != nil { marked[node.id] = nil }
+        else { marked[node.id] = node }
         version += 1
     }
 

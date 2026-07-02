@@ -45,34 +45,59 @@ let CORES = ProcessInfo.processInfo.activeProcessorCount
 /// Diskly's parallel tree builder: plain files inline; subdirectories in
 /// parallel while gate slots are free, otherwise recursed inline. Mirrors
 /// Diskly/Model.swift:Scanner.build but drives a simpler `Node`.
-func disklyBuild(_ url: URL, _ node: Node, _ gate: ScanGate,
-                 _ registry: DirRegistry) async {
-    guard registry.shouldWalk(url) else { return }
-    let contents = Scanner.entries(of: url.path)
+/// The directory is opened via openat(2) relative to the parent's open fd —
+/// single-component resolution — and the fd stays open until the subtree is
+/// walked so children can do the same.
+func disklyBuild(parentFD: Int32, name: String, path: String, _ node: Node,
+                 _ gate: ScanGate, _ registry: DirRegistry) async {
+    let fd = Scanner.openDir(at: parentFD, name)
+    guard fd >= 0 else { return }
+    defer { close(fd) }
+    guard registry.shouldWalk(path: path, fd: fd) else { return }
+    let contents = Scanner.entries(fd: fd)
     itemCount.withLock { $0 += contents.count }
     var kids: [Node] = []
     kids.reserveCapacity(contents.count)
-    await withTaskGroup(of: Node.self) { group in
-        for e in contents {
+    // Files inline; collect subdirs first so leaf dirs (most dirs) and
+    // single-subdir chains never pay for task-group setup — profiling showed
+    // withTaskGroup machinery as the top non-syscall cost.
+    var dirs: [Scanner.DirEntry] = []
+    for e in contents {
+        if e.isDir && !e.isLink {
+            dirs.append(e)
+        } else {
             let child = Node()
-            if e.isDir && !e.isLink {
-                let childURL = url.appendingPathComponent(e.name)
+            child.size = e.size
+            kids.append(child)
+        }
+    }
+    if dirs.count == 1 {
+        // One subdir: nothing to run in parallel with — recurse inline.
+        let e = dirs[0]
+        let child = Node()
+        await disklyBuild(parentFD: fd, name: e.name, path: path + "/" + e.name,
+                          child, gate, registry)
+        kids.append(child)
+    } else if dirs.count > 1 {
+        await withTaskGroup(of: Node.self) { group in
+            for e in dirs {
+                let child = Node()
+                let childPath = path + "/" + e.name
                 if gate.tryAcquire() {
                     group.addTask {
-                        await disklyBuild(childURL, child, gate, registry)
+                        await disklyBuild(parentFD: fd, name: e.name,
+                                          path: childPath, child, gate, registry)
                         gate.release()
                         return child
                     }
                 } else {
-                    await disklyBuild(childURL, child, gate, registry)
+                    await disklyBuild(parentFD: fd, name: e.name,
+                                      path: childPath, child, gate, registry)
                     kids.append(child)
                 }
-            } else {
-                child.size = e.size
-                kids.append(child)
             }
+            for await n in group { kids.append(n) }
         }
-        for await n in group { kids.append(n) }
     }
     node.children = kids
     node.size = kids.reduce(0) { $0 + $1.size }
@@ -81,7 +106,11 @@ func disklyBuild(_ url: URL, _ node: Node, _ gate: ScanGate,
 func disklyScan(_ root: URL) async -> Node {
     itemCount.withLock { $0 = 0 }
     let n = Node()
-    let top = Scanner.entries(of: root.path)
+    let rootPath = root.path
+    let rootFD = Scanner.openDir(rootPath)
+    guard rootFD >= 0 else { return n }
+    defer { close(rootFD) }
+    let top = Scanner.entries(fd: rootFD)
     itemCount.withLock { $0 += top.count }
     let gate = ScanGate(limit: CORES)
     let registry = DirRegistry()
@@ -89,9 +118,10 @@ func disklyScan(_ root: URL) async -> Node {
         for e in top {
             let child = Node()
             if e.isDir && !e.isLink {
-                let childURL = root.appendingPathComponent(e.name)
                 group.addTask {
-                    await disklyBuild(childURL, child, gate, registry)
+                    await disklyBuild(parentFD: rootFD, name: e.name,
+                                      path: rootPath + "/" + e.name,
+                                      child, gate, registry)
                     return child
                 }
             } else {
@@ -163,11 +193,33 @@ func shellQuote(_ s: String) -> String {
 @main
 struct Bench {
     static func main() async {
-        let arg = CommandLine.arguments.count > 1
-            ? CommandLine.arguments[1]
-            : NSHomeDirectory() + "/Library"
+        var args = Array(CommandLine.arguments.dropFirst())
+        // --quick: Diskly scan only (best of 3), no external tools. For
+        // iterating on scanner performance without paying for du/find/ncdu.
+        let quick = args.contains("--quick")
+        args.removeAll { $0 == "--quick" }
+        let arg = args.first ?? NSHomeDirectory() + "/Library"
         let path = (arg as NSString).standardizingPath
         let url = URL(fileURLWithPath: path)
+
+        if quick {
+            _ = await disklyScan(url)   // warm page cache
+            var times: [Double] = []
+            var items = 0; var bytes: Int64 = 0
+            for _ in 0..<3 {
+                let t = Date()
+                let root = await disklyScan(url)
+                times.append(Date().timeIntervalSince(t))
+                items = itemCount.withLock { $0 }
+                bytes = root.size
+            }
+            let best = times.min()!
+            print("quick bench  path: \(path)  cores: \(CORES)")
+            print("items: \(items)  bytes: \(fmtBytes(bytes))")
+            print("runs: " + times.map { fmtTime($0) }.joined(separator: "  "))
+            print("best: \(fmtTime(best))  (\(fmtMBps(Double(bytes) / best / 1_000_000)) MB/s)")
+            return
+        }
 
         print("Diskly scan benchmark")
         print("path:  \(path)")

@@ -126,7 +126,7 @@ extension FileNode {
 struct TreemapView<Menu: View>: View {
     let node: FileNode
     let version: Int
-    let markedIDs: Set<URL>
+    let markedIDs: Set<ObjectIdentifier>
     @Binding var selected: FileNode?
     @Binding var hovered: FileNode?
     let onDrill: (FileNode) -> Void
@@ -238,8 +238,8 @@ struct TreemapView<Menu: View>: View {
 /// set or selection actually changed.
 private struct TreemapCanvas: View, Equatable {
     let tiles: [Tile]
-    let selectedID: URL?
-    let markedIDs: Set<URL>
+    let selectedID: ObjectIdentifier?
+    let markedIDs: Set<ObjectIdentifier>
     let focused: Bool
 
     static func == (l: TreemapCanvas, r: TreemapCanvas) -> Bool {

@@ -57,21 +57,22 @@ nonisolated final class DirRegistry: @unchecked Sendable {
         self.firmlinkTargets = Self.loadFirmlinkTargets()
     }
 
-    /// True if `url` should be recursed into. Returns false for:
+    /// True if the directory open at `fd` (full path `path`) should be
+    /// recursed into. Returns false for:
     /// - the Data-volume side of a firmlink (the "/" side handles it), and
     /// - any directory whose (device, inode) was already walked.
-    func shouldWalk(_ url: URL) -> Bool {
+    /// Identity comes from fstat(2) on the open fd — no path re-resolution.
+    func shouldWalk(path: String, fd: Int32) -> Bool {
         let dataMount = "/System/Volumes/Data/"
-        let p = url.path
-        if p.hasPrefix(dataMount) {
-            let rest = String(p.dropFirst(dataMount.count))
+        if path.hasPrefix(dataMount) {
+            let rest = String(path.dropFirst(dataMount.count))
             // Exact match on the firmlink target (right column of
             // /usr/share/firmlinks) — handles nested targets like
             // "System/Library/Caches", not just top-level ones.
             if firmlinkTargets.contains(rest) { return false }
         }
         var st = stat()
-        guard stat(p, &st) == 0 else { return true }   // unreadable → just walk it
+        guard fstat(fd, &st) == 0 else { return true } // unreadable → just walk it
         let key = InodeKey(dev: UInt64(st.st_dev), ino: UInt64(st.st_ino))
         lock.lock(); defer { lock.unlock() }
         return seen.insert(key).inserted
@@ -94,6 +95,40 @@ nonisolated final class DirRegistry: @unchecked Sendable {
 // MARK: - Scanner primitives
 
 nonisolated enum Scanner {
+    /// One-time process setup for scanning, triggered on first directory open:
+    /// - Never materialize dataless (iCloud / file-provider) files: open() on
+    ///   a dataless directory otherwise blocks on a network recall — a disk
+    ///   scanner must measure, not download. Constants from sys/resource.h
+    ///   (not exposed to Swift by name).
+    /// - Raise RLIMIT_NOFILE: the openat-based walk holds one fd per
+    ///   in-progress directory (≈ parallel chains × tree depth), which can
+    ///   exceed the default 256 soft limit.
+    static let scanSetup: Void = {
+        _ = setiopolicy_np(3 /* IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES */,
+                           0 /* IOPOL_SCOPE_PROCESS */,
+                           1 /* IOPOL_MATERIALIZE_DATALESS_FILES_OFF */)
+        var rl = rlimit()
+        if getrlimit(RLIMIT_NOFILE, &rl) == 0 {
+            rl.rlim_cur = min(10240, rl.rlim_max)   // rlim_max may be "infinity" (huge) — min handles it
+            _ = setrlimit(RLIMIT_NOFILE, &rl)
+        }
+    }()
+
+    /// Open a directory for scanning. Returns -1 on error.
+    static func openDir(_ path: String) -> Int32 {
+        _ = scanSetup
+        return open(path, O_RDONLY | O_DIRECTORY)
+    }
+
+    /// Open a subdirectory relative to an already-open parent directory.
+    /// openat(2) resolves only the single final component — the parent chain
+    /// was resolved once when the parent was opened. Profiling showed the
+    /// scan bottlenecked in full-path open(), which re-resolves every path
+    /// component for every directory.
+    static func openDir(at parent: Int32, _ name: String) -> Int32 {
+        openat(parent, name, O_RDONLY | O_DIRECTORY)
+    }
+
     /// One directory entry: name, type, and allocated size — everything the scan
     /// needs, all from a single bulk syscall (no per-file stat).
     struct DirEntry { let name: String; let isDir: Bool; let isLink: Bool; let size: Int64 }
@@ -105,10 +140,14 @@ nonisolated enum Scanner {
     /// Symlinks report size 0 (their own storage is negligible; we don't follow
     /// them). Returns empty on any open error (permissions, races).
     static func entries(of path: String) -> [DirEntry] {
-        let fd = open(path, O_RDONLY | O_DIRECTORY)
+        let fd = openDir(path)
         guard fd >= 0 else { return [] }
         defer { close(fd) }
+        return entries(fd: fd)
+    }
 
+    /// Core bulk read from an already-open directory fd. Does NOT close `fd`.
+    static func entries(fd: Int32) -> [DirEntry] {
         var al = attrlist()
         al.bitmapcount = u_short(ATTR_BIT_MAP_COUNT)
         al.commonattr = attrgroup_t(UInt32(ATTR_CMN_RETURNED_ATTRS) | UInt32(ATTR_CMN_ERROR)
