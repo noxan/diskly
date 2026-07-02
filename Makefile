@@ -54,7 +54,7 @@ $(BENCH_BIN): bench/bench.swift Diskly/Scanner.swift
 # right-click → Open the first time. Uses zip -X --symlinks (see dist target
 # note) so the archive stays Gatekeeper-clean.
 share: clean build
-	cd "$(BUILD_DIR)/Release" && zip -qrX --symlinks "$$PWD/$(ZIP_SHARE)" "$(APP).app"
+	cd "$(BUILD_DIR)/Release" && zip -qrX --symlinks "$(CURDIR)/$(ZIP_SHARE)" "$(APP).app"
 	@echo
 	@echo "Built: $(ZIP_SHARE)"
 	@echo "Recipients: right-click the app → Open the first time to bypass Gatekeeper."
@@ -68,7 +68,7 @@ share: clean build
 # "could not verify… free of malware". -X skips xattrs, --symlinks keeps the
 # framework's Versions/Current symlinks intact.
 dist: sign notarize staple verify
-	cd "$(BUILD_DIR)/Release" && zip -qrX --symlinks "$$PWD/$(ZIP_DIST)" "$(APP).app"
+	cd "$(BUILD_DIR)/Release" && zip -qrX --symlinks "$(CURDIR)/$(ZIP_DIST)" "$(APP).app"
 	@echo
 	@echo "Distributed: $(ZIP_DIST) — signed + notarized, ready for anyone to open."
 
