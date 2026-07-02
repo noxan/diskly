@@ -75,6 +75,13 @@ during a scan, and the main thread shows zero scan frames (idle event loop).
 Lesson: when a GUI target and a CLI harness share code, profile the GUI
 target too — build settings can change execution semantics.
 
+Post-fix app profile (10s sample mid-scan): worker threads match the bench
+profile exactly — getattrlistbulk 2473 leaf samples, openat 1557, then a
+long tail (shouldWalk 215, allocs ~600, String(cString:) 107, fstat 106).
+Main thread ~95% idle; ~500ms/10s in AppKit/CoreAnimation display updates
+from the 10fps redraw loop. UI has ample headroom; scan is syscall-bound
+in the app too. RSS during a large scan: ~390 MB.
+
 ## Ideas rejected as below noise / not worth it
 
 - ScanProgress/itemCount lock traffic (already per-dir).
