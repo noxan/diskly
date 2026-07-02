@@ -29,29 +29,36 @@ the Trash in one pass.
 
 ## Performance
 
-Diskly scans in parallel across cores and reads directory entries in bulk via
-`getattrlistbulk(2)` — one syscall per batch instead of one `stat` per file.
-On a 2024 MacBook Pro (M4, 11 cores) it walks `~/Library` (≈833k items,
-≈103 GB) **2.3–3.5× faster** than `du` and `ncdu`, and ~3.5× faster than
-`find + stat`:
+Diskly scans in parallel across cores, reads directory entries in bulk via
+`getattrlistbulk(2)` — one syscall per batch instead of one `stat` per file —
+and walks the tree with `openat(2)` relative to each parent directory, so the
+kernel resolves one path component per directory instead of the whole path.
+Scans also never trigger iCloud downloads (dataless files are measured, not
+materialized).
+
+On a 2024 MacBook Pro (M4, 11 cores) it walks `~/Library` (≈849k items,
+≈104 GB) **2–3× faster** than `du`, `ncdu`, and `find + stat` in a
+back-to-back comparison, and repeat scans complete in as little as ~4s:
 
 | tool             | time    | items     | MB/s   | vs Diskly |
 | ---------------- | ------- | --------- | ------ | --------- |
-| **Diskly**       | 11.1s   | 833,543   | 9,266  | 1.00×     |
-| `du -sk`         | 25.6s   | —         | 3,994  | 2.29×     |
-| `ncdu -1 -o -`   | 32.2s   | —         | 3,209  | 2.89×     |
-| `find + stat`    | 39.3s   | 833,543   | 2,626  | 3.53×     |
+| **Diskly**       | 12.3s   | 849,067   | 8,445  | 1.00×     |
+| `du -sk`         | 25.4s   | —         | 4,057  | 2.06×     |
+| `ncdu -1 -o -`   | 30.4s   | —         | 3,415  | 2.47×     |
+| `find + stat`    | 39.0s   | 849,067   | 2,664  | 3.17×     |
 
 Reproduce on your own machine:
 
 ```sh
-make bench                          # default: ~/Library
+make bench                          # cross-tool comparison (default: ~/Library)
 make bench BENCH_PATH=~/Developer   # any folder
+./bench/bench --quick ~/Library     # Diskly only, best of 3
 ```
 
 A warm-up scan fills the page cache first, so every tool benefits equally
-from kernel caching. Numbers will vary with disk, file-tree shape, and core
-count — the relative speedup holds.
+from kernel caching. Numbers will vary with disk, file-tree shape, core
+count, and background load — the relative speedup holds. The optimization
+history lives in [bench/PERF_LOG.md](bench/PERF_LOG.md).
 
 ## Install
 
