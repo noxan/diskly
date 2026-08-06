@@ -150,13 +150,11 @@ struct CleanupView: View {
     private func scanSizes(access: URL) async {
         needsAccess = false
         isScanning = true
-        await withTaskGroup(of: (String, Int64).self) { group in
-            for target in CleanupTarget.all {
-                let id = target.id
-                let source = target.sizeSource
-                group.addTask { (id, await source.size()) }
-            }
-            for await (id, size) in group { sizes[id] = size }
+        // Each filesystem scan already fans out across all cores. Running all
+        // targets together oversubscribes the machine and starves the UI.
+        for target in CleanupTarget.all {
+            if Task.isCancelled { break }
+            sizes[target.id] = await target.sizeSource.size()
         }
         access.stopAccessingSecurityScopedResource()
         isScanning = false
@@ -317,11 +315,11 @@ private enum CleanupSizeSource: Sendable {
     func size() async -> Int64 {
         switch self {
         case .files(let urls):
-            await withTaskGroup(of: Int64.self) { group in
-                for url in urls { group.addTask { await Scanner.size(of: url) } }
-                return await group.reduce(0, +)
-            }
-        case .docker(let executable, let home): await Self.dockerSize(executable, home: home)
+            var total: Int64 = 0
+            for url in urls { total += await Scanner.size(of: url) }
+            return total
+        case .docker(let executable, let home):
+            return await Self.dockerSize(executable, home: home)
         }
     }
 
