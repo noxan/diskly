@@ -175,8 +175,17 @@ private struct CleanupTarget: Identifiable, Sendable {
         let home = QuickLocation.realHome
         return [.init(name: "Bun cache", icon: "shippingbox",
                       cacheURL: home.appending(path: ".bun/install/cache"),
-                      executableURL: home.appending(path: ".bun/bin/bun"),
+                      executableURL: executable(named: "bun", home: home),
                       arguments: ["pm", "cache", "rm"])]
+    }
+
+    private static func executable(named name: String, home: URL) -> URL {
+        let candidates = [home.appending(path: ".bun/bin/\(name)"),
+                          URL(filePath: "/etc/profiles/per-user/\(NSUserName())/bin/\(name)"),
+                          URL(filePath: "/opt/homebrew/bin/\(name)"),
+                          URL(filePath: "/usr/local/bin/\(name)")]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+            ?? candidates[0]
     }
 }
 
