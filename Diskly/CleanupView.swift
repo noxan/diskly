@@ -31,6 +31,9 @@ struct CleanupView: View {
     let model: AppModel
     @State private var pending: CleanupTarget?
     @State private var isCleaning = false
+    @State private var isScanning = false
+    @State private var needsAccess = false
+    @State private var sizes: [String: Int64] = [:]
     @State private var error: String?
 
     var body: some View {
@@ -38,6 +41,12 @@ struct CleanupView: View {
             HStack {
                 Text("Clean Up").font(.title.bold())
                 Spacer()
+                if needsAccess {
+                    Button("Allow Home Access") {
+                        guard let access = requestHomeAccess() else { return }
+                        Task { await scanSizes(access: access) }
+                    }
+                }
                 Button("Done") { dismiss() }
             }
 
@@ -49,8 +58,15 @@ struct CleanupView: View {
                         Text(target.cacheURL.path).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    if let size = sizes[target.id] {
+                        Text(size.byteString)
+                            .font(.callout.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    } else if isScanning {
+                        ProgressView().controlSize(.small)
+                    }
                     Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
-                        .disabled(isCleaning)
+                        .disabled(isCleaning || isScanning)
                 }
                 .padding()
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
@@ -60,6 +76,7 @@ struct CleanupView: View {
         }
         .padding(24)
         .frame(width: 520, height: 280)
+        .task { await refreshSizes() }
         .confirmationDialog("Clean \(pending?.name ?? "cache")?", isPresented: Binding(
             get: { pending != nil }, set: { if !$0 { pending = nil } }
         )) {
@@ -99,6 +116,33 @@ struct CleanupView: View {
             }.value
             isCleaning = false
             if let failure { error = "Couldn't clean \(target.name): \(failure)" }
+            else { await refreshSizes() }
+        }
+    }
+
+    private func refreshSizes() async {
+        guard !isScanning,
+              let access = model.beginGrantedAccess(for: QuickLocation.realHome) else {
+            needsAccess = true
+            return
+        }
+        await scanSizes(access: access)
+    }
+
+    private func scanSizes(access: URL) async {
+        needsAccess = false
+        isScanning = true
+        defer {
+            access.stopAccessingSecurityScopedResource()
+            isScanning = false
+        }
+        await withTaskGroup(of: (String, Int64).self) { group in
+            for target in CleanupTarget.all {
+                let id = target.id
+                let url = target.cacheURL
+                group.addTask { (id, await Scanner.size(of: url)) }
+            }
+            for await (id, size) in group { sizes[id] = size }
         }
     }
 
@@ -133,5 +177,16 @@ private struct CleanupTarget: Identifiable, Sendable {
                       cacheURL: home.appending(path: ".bun/install/cache"),
                       executableURL: home.appending(path: ".bun/bin/bun"),
                       arguments: ["pm", "cache", "rm"])]
+    }
+}
+
+private extension Scanner {
+    /// Reuse the production walker; discard its tree and keep the byte counter.
+    static func size(of url: URL) async -> Int64 {
+        let root = FileNode(name: url.lastPathComponent, isDirectory: true,
+                            parent: nil, fixedURL: url)
+        let progress = ScanProgress()
+        await scanStreaming(url, parent: root, progress: progress) { _ in }
+        return progress.bytes
     }
 }
