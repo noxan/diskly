@@ -167,17 +167,22 @@ struct CleanupView: View {
         let access = model.beginGrantedAccess(for: QuickLocation.realHome) ?? requestHomeAccess()
         guard let access else { return }
         let homePath = QuickLocation.realHome.path
+        // Sizes are the last measurement before cleaning — the best estimate of
+        // what each target actually frees.
+        let estimates = targets.reduce(into: [String: Int64]()) { $0[$1.id] = sizes[$1.id] ?? 0 }
         isCleaning = true
         Task {
-            let failure: String? = await Task.detached(priority: .userInitiated) {
+            let result = await Task.detached(priority: .userInitiated) {
                 defer { access.stopAccessingSecurityScopedResource() }
                 var failures: [String] = []
+                var freed: [String: Int64] = [:]
                 for target in targets {
                     do {
                         switch target.action {
                     case .trashContents(let urls):
                         try trashContents(urls, named: target.name,
                                           home: URL(filePath: homePath))
+                        freed[target.name] = estimates[target.name]
                     case .command(let executable, let arguments):
                         let process = Process()
                         let errors = Pipe()
@@ -189,7 +194,10 @@ struct CleanupView: View {
                         try process.run()
                         process.waitUntilExit()
                         guard process.terminationReason != .exit || process.terminationStatus != 0
-                        else { continue }
+                        else {
+                            freed[target.name] = estimates[target.name]
+                            continue
+                        }
                         let detail = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(),
                                             as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
                         failures.append(detail.isEmpty
@@ -200,10 +208,13 @@ struct CleanupView: View {
                         failures.append("\(target.name): \(error.localizedDescription)")
                     }
                 }
-                return failures.isEmpty ? nil : failures.joined(separator: "\n")
+                return (failures.isEmpty ? nil : failures.joined(separator: "\n"), freed)
             }.value
             isCleaning = false
-            if let failure { error = "Couldn't clean every cache:\n\(failure)" }
+            for (name, bytes) in result.1.sorted(by: { $0.key < $1.key }) {
+                ReclaimedLog.shared.record(bytes, origin: .cleanup, source: name)
+            }
+            if let failure = result.0 { error = "Couldn't clean every cache:\n\(failure)" }
             if isScanning { needsRescan = true }
             else { await refreshSizes() }
         }

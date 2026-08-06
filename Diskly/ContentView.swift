@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var model = AppModel()
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var showingCleanup = false
+    @State private var showingStats = false
 
     var body: some View {
         // ponytail: no NavigationSplitView until a folder is scanned — that's
@@ -43,8 +44,24 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: model.previewing)
-        .toolbar { Toolbar(model: model, showingCleanup: $showingCleanup) }
+        .toolbar {
+            Toolbar(model: model, showingCleanup: $showingCleanup,
+                    showingStats: $showingStats)
+        }
         .navigationTitle("Diskly")
+        .sheet(isPresented: $showingStats) {
+            VStack(spacing: 0) {
+                ReclaimedStats()
+                Divider()
+                HStack {
+                    Spacer()
+                    Button("Done") { showingStats = false }
+                        .keyboardShortcut(.defaultAction)
+                }
+                .padding(12)
+            }
+            .frame(width: 640, height: 560)
+        }
         .alert("Trash failed", isPresented: Binding(
             get: { model.lastError != nil },
             set: { if !$0 { model.lastError = nil } }
@@ -202,9 +219,14 @@ private struct DiskRow: View {
 private struct Toolbar: ToolbarContent {
     @Bindable var model: AppModel
     @Binding var showingCleanup: Bool
+    @Binding var showingStats: Bool
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            Button { showingStats = true } label: {
+                Image(systemName: "chart.bar.xaxis")
+            }
+            .help("Reclaimed — lifetime stats and history")
             Button { model.rescan() } label: { Image(systemName: "arrow.clockwise") }
                 .help("Rescan")
                 .disabled(model.root == nil || model.isScanning)

@@ -573,14 +573,19 @@ final class AppModel {
             $0.url.pathComponents.count > $1.url.pathComponents.count
         }
         var failures: [String] = []
+        var freed: Int64 = 0
         for node in nodes {
             do {
+                let size = node.size
                 try FileManager.default.trashItem(at: node.url, resultingItemURL: nil)
                 remove(node)
+                freed += size
             } catch {
                 failures.append("\(node.name): \(error.localizedDescription)")
             }
         }
+        ReclaimedLog.shared.record(freed, origin: .scan,
+                                   source: root?.name ?? "Scanned folder")
         marked.removeAll()
         if selected != nil && selected?.parent == nil { /* keep */ }
         lastError = failures.isEmpty ? nil
