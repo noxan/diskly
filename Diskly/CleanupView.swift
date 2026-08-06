@@ -102,6 +102,13 @@ struct CleanupView: View {
                     }
                 }
             }
+
+            Link(destination: URL(string: "https://github.com/noxan/diskly/issues/new")!) {
+                Label("Send feedback or request another tool", systemImage: "arrow.up.right")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
         }
         .padding(24)
         .frame(maxWidth: 700, maxHeight: .infinity)
