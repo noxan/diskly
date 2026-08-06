@@ -87,7 +87,7 @@ struct CleanupView: View {
                 }
             }
         } message: {
-            Text("Bun will permanently remove its cached packages. They can be downloaded again.")
+            Text(pending?.message ?? "")
         }
         .alert("Cleanup failed", isPresented: Binding(
             get: { error != nil }, set: { if !$0 { error = nil } }
@@ -169,14 +169,23 @@ private struct CleanupTarget: Identifiable, Sendable {
     let cacheURL: URL
     let executableURL: URL
     let arguments: [String]
+    let message: String
     var id: String { name }
 
     static var all: [CleanupTarget] {
         let home = QuickLocation.realHome
-        return [.init(name: "Bun cache", icon: "shippingbox",
-                      cacheURL: home.appending(path: ".bun/install/cache"),
-                      executableURL: executable(named: "bun", home: home),
-                      arguments: ["pm", "cache", "rm"])]
+        return [
+            .init(name: "Homebrew", icon: "mug.fill",
+                  cacheURL: home.appending(path: "Library/Caches/Homebrew"),
+                  executableURL: executable(named: "brew", home: home),
+                  arguments: ["cleanup", "--prune=all"],
+                  message: "Homebrew will remove cached downloads and old package versions."),
+            .init(name: "Bun cache", icon: "shippingbox",
+                  cacheURL: home.appending(path: ".bun/install/cache"),
+                  executableURL: executable(named: "bun", home: home),
+                  arguments: ["pm", "cache", "rm"],
+                  message: "Bun will permanently remove its cached packages. They can be downloaded again.")
+        ]
     }
 
     private static func executable(named name: String, home: URL) -> URL {
