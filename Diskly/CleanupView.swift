@@ -50,29 +50,32 @@ struct CleanupView: View {
                 }
             }
 
-            ForEach(CleanupTarget.all) { target in
-                HStack(spacing: 12) {
-                    Image(systemName: target.icon).font(.title2).foregroundStyle(.tint)
-                    VStack(alignment: .leading) {
-                        Text(target.name).fontWeight(.medium)
-                        Text(target.sizeSource.label).font(.caption).foregroundStyle(.secondary)
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(CleanupTarget.all) { target in
+                        HStack(spacing: 12) {
+                            Image(systemName: target.icon).font(.title2).foregroundStyle(.tint)
+                            VStack(alignment: .leading) {
+                                Text(target.name).fontWeight(.medium)
+                                Text(target.sizeSource.label).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if let size = sizes[target.id] {
+                                Text(size.byteString)
+                                    .font(.callout.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            } else if isScanning {
+                                ProgressView().controlSize(.small)
+                            }
+                            Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
+                                .disabled(isCleaning)
+                        }
+                        .padding()
+                        .background(.quaternary.opacity(0.5),
+                                    in: RoundedRectangle(cornerRadius: 10))
                     }
-                    Spacer()
-                    if let size = sizes[target.id] {
-                        Text(size.byteString)
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    } else if isScanning {
-                        ProgressView().controlSize(.small)
-                    }
-                    Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
-                        .disabled(isCleaning)
                 }
-                .padding()
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
             }
-
-            Spacer()
         }
         .padding(24)
         .frame(maxWidth: 700, maxHeight: .infinity)
