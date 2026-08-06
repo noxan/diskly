@@ -34,10 +34,17 @@ struct CleanupView: View {
     @State private var isScanning = false
     @State private var needsRescan = false
     @State private var needsAccess = false
+    @State private var showCleaned = false
+    @State private var confirmAll = false
     @State private var sizes: [String: Int64] = [:]
     @State private var error: String?
 
     var body: some View {
+        let targets = CleanupTarget.all
+        let cleaned = targets.filter { sizes[$0.id] == 0 }
+        let available = targets.filter { sizes[$0.id] != 0 }
+        let total = available.reduce(Int64(0)) { $0 + (sizes[$1.id] ?? 0) }
+
         VStack(alignment: .leading, spacing: 20) {
             HStack {
                 Text("Clean Up").font(.title.bold())
@@ -48,30 +55,24 @@ struct CleanupView: View {
                         Task { await scanSizes(access: access) }
                     }
                 }
+                Button("Clean All · \(total.byteString)") { confirmAll = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isCleaning || available.isEmpty)
             }
 
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(CleanupTarget.all) { target in
-                        HStack(spacing: 12) {
-                            Image(systemName: target.icon).font(.title2).foregroundStyle(.tint)
-                            VStack(alignment: .leading) {
-                                Text(target.name).fontWeight(.medium)
-                                Text(target.sizeSource.label).font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if let size = sizes[target.id] {
-                                Text(size.byteString)
-                                    .font(.callout.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            } else if isScanning {
-                                ProgressView().controlSize(.small)
-                            }
-                            Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
-                                .disabled(isCleaning)
+                    ForEach(available) { target in targetRow(target, cleaned: false) }
+                    if !cleaned.isEmpty {
+                        DisclosureGroup(isExpanded: $showCleaned) {
+                            ForEach(cleaned) { target in targetRow(target, cleaned: true) }
+                                .padding(.top, 8)
+                        } label: {
+                            Label("\(cleaned.count) Clean", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
                         }
                         .padding()
-                        .background(.quaternary.opacity(0.5),
+                        .background(.quaternary.opacity(0.35),
                                     in: RoundedRectangle(cornerRadius: 10))
                     }
                 }
@@ -92,12 +93,42 @@ struct CleanupView: View {
         } message: {
             Text(pending?.message ?? "")
         }
+        .confirmationDialog("Clean all developer caches?", isPresented: $confirmAll) {
+            Button("Clean All", role: .destructive) { clean(available) }
+        } message: {
+            Text("Up to \(total.byteString) will be reclaimed. File caches are grouped in the Trash; tool-managed cleanup cannot be undone there.")
+        }
         .alert("Cleanup failed", isPresented: Binding(
             get: { error != nil }, set: { if !$0 { error = nil } }
         )) { Button("OK", role: .cancel) {} } message: { Text(error ?? "") }
     }
 
-    private func clean(_ target: CleanupTarget) {
+    private func targetRow(_ target: CleanupTarget, cleaned: Bool) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: cleaned ? "checkmark.circle.fill" : target.icon)
+                .font(.title2).foregroundStyle(cleaned ? Color.green : Color.accentColor)
+            VStack(alignment: .leading) {
+                Text(target.name).fontWeight(.medium)
+                Text(target.sizeSource.label).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let size = sizes[target.id] {
+                Text(size.byteString).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            } else if isScanning {
+                ProgressView().controlSize(.small)
+            }
+            if !cleaned {
+                Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
+                    .disabled(isCleaning)
+            }
+        }
+        .padding()
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func clean(_ target: CleanupTarget) { clean([target]) }
+
+    private func clean(_ targets: [CleanupTarget]) {
         let access = model.beginGrantedAccess(for: QuickLocation.realHome) ?? requestHomeAccess()
         guard let access else { return }
         let homePath = QuickLocation.realHome.path
@@ -105,12 +136,13 @@ struct CleanupView: View {
         Task {
             let failure: String? = await Task.detached(priority: .userInitiated) {
                 defer { access.stopAccessingSecurityScopedResource() }
-                do {
-                    switch target.action {
+                var failures: [String] = []
+                for target in targets {
+                    do {
+                        switch target.action {
                     case .trashContents(let urls):
                         try trashContents(urls, named: target.name,
                                           home: URL(filePath: homePath))
-                        return nil
                     case .command(let executable, let arguments):
                         let process = Process()
                         let errors = Pipe()
@@ -122,18 +154,22 @@ struct CleanupView: View {
                         try process.run()
                         process.waitUntilExit()
                         guard process.terminationReason != .exit || process.terminationStatus != 0
-                        else { return nil }
+                        else { continue }
                         let detail = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(),
                                             as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-                        return detail.isEmpty
+                        failures.append(detail.isEmpty
                             ? "\(target.name) exited with status \(process.terminationStatus)."
-                            : detail
+                            : detail)
+                        }
+                    } catch {
+                        failures.append("\(target.name): \(error.localizedDescription)")
                     }
-                } catch { return error.localizedDescription }
+                }
+                return failures.isEmpty ? nil : failures.joined(separator: "\n")
             }.value
             isCleaning = false
-            if let failure { error = "Couldn't clean \(target.name): \(failure)" }
-            else if isScanning { needsRescan = true }
+            if let failure { error = "Couldn't clean every cache:\n\(failure)" }
+            if isScanning { needsRescan = true }
             else { await refreshSizes() }
         }
     }
