@@ -346,8 +346,15 @@ private struct CleanupTarget: Identifiable, Sendable {
             ]),
             fileTarget("Yarn", icon: "shippingbox.circle.fill", urls: [yarnCache]),
             fileTarget("Go build", icon: "hammer.fill", urls: [goCache]),
-            fileTarget("Google apps", icon: "globe", urls: [
+            fileTarget("Chrome & Google apps", icon: "globe", urls: [
                 home.appending(path: "Library/Caches/Google")
+            ]),
+            fileTarget("Safari", icon: "safari", urls: [
+                home.appending(path: "Library/Caches/com.apple.Safari"),
+                home.appending(path: "Library/Containers/com.apple.Safari/Data/Library/Caches")
+            ]),
+            fileTarget("Firefox", icon: "flame.fill", urls: [
+                home.appending(path: "Library/Caches/Firefox")
             ]),
             fileTarget("Dia", icon: "globe", urls: [
                 home.appending(path: "Library/Caches/Dia"),
