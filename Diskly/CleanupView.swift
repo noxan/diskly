@@ -28,10 +28,10 @@ struct CleanupPreview: View {
 
 struct CleanupView: View {
     let model: AppModel
-    let onDone: () -> Void
     @State private var pending: CleanupTarget?
     @State private var isCleaning = false
     @State private var isScanning = false
+    @State private var needsRescan = false
     @State private var needsAccess = false
     @State private var sizes: [String: Int64] = [:]
     @State private var error: String?
@@ -47,7 +47,6 @@ struct CleanupView: View {
                         Task { await scanSizes(access: access) }
                     }
                 }
-                Button("Done", action: onDone)
             }
 
             ForEach(CleanupTarget.all) { target in
@@ -66,7 +65,7 @@ struct CleanupView: View {
                         ProgressView().controlSize(.small)
                     }
                     Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
-                        .disabled(isCleaning || isScanning)
+                        .disabled(isCleaning)
                 }
                 .padding()
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
@@ -116,13 +115,14 @@ struct CleanupView: View {
             }.value
             isCleaning = false
             if let failure { error = "Couldn't clean \(target.name): \(failure)" }
+            else if isScanning { needsRescan = true }
             else { await refreshSizes() }
         }
     }
 
     private func refreshSizes() async {
-        guard !isScanning,
-              let access = model.beginGrantedAccess(for: QuickLocation.realHome) else {
+        guard !isScanning else { return }
+        guard let access = model.beginGrantedAccess(for: QuickLocation.realHome) else {
             needsAccess = true
             return
         }
@@ -132,10 +132,6 @@ struct CleanupView: View {
     private func scanSizes(access: URL) async {
         needsAccess = false
         isScanning = true
-        defer {
-            access.stopAccessingSecurityScopedResource()
-            isScanning = false
-        }
         await withTaskGroup(of: (String, Int64).self) { group in
             for target in CleanupTarget.all {
                 let id = target.id
@@ -143,6 +139,12 @@ struct CleanupView: View {
                 group.addTask { (id, await Scanner.size(of: url)) }
             }
             for await (id, size) in group { sizes[id] = size }
+        }
+        access.stopAccessingSecurityScopedResource()
+        isScanning = false
+        if needsRescan {
+            needsRescan = false
+            await refreshSizes()
         }
     }
 

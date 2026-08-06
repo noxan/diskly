@@ -16,7 +16,7 @@ struct ContentView: View {
         ZStack {
             Group {
                 if showingCleanup {
-                    CleanupView(model: model, onDone: { showingCleanup = false })
+                    CleanupView(model: model)
                 } else if model.root == nil {
                     Welcome(model: model)
                 } else {
@@ -43,7 +43,7 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: model.previewing)
-        .toolbar { Toolbar(model: model) }
+        .toolbar { Toolbar(model: model, showingCleanup: $showingCleanup) }
         .navigationTitle("Diskly")
         .alert("Trash failed", isPresented: Binding(
             get: { model.lastError != nil },
@@ -201,15 +201,19 @@ private struct DiskRow: View {
 
 private struct Toolbar: ToolbarContent {
     @Bindable var model: AppModel
+    @Binding var showingCleanup: Bool
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button { model.rescan() } label: { Image(systemName: "arrow.clockwise") }
                 .help("Rescan")
                 .disabled(model.root == nil || model.isScanning)
-            Button { model.goHome() } label: { Image(systemName: "house") }
-                .help("Back to start — choose another folder")
-                .disabled(model.root == nil)
+            Button {
+                if showingCleanup { showingCleanup = false }
+                else { model.goHome() }
+            } label: { Image(systemName: "house") }
+                .help(showingCleanup ? "Back to Diskly" : "Back to start — choose another folder")
+                .disabled(model.root == nil && !showingCleanup)
         }
     }
 }
