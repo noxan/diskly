@@ -337,7 +337,7 @@ final class AppModel {
 
     /// Begin accessing whichever granted root covers `target`; returns that root
     /// (to stop later), or nil if no prior grant exists.
-    private func beginGrantedAccess(for target: URL) -> URL? {
+    func beginGrantedAccess(for target: URL) -> URL? {
         guard let data = grantedBookmark(for: target) else { return nil }
         var stale = false
         guard let root = try? URL(resolvingBookmarkData: data,
@@ -477,7 +477,7 @@ final class AppModel {
     }
 
     /// Bookmark a freshly scanned folder so it re-opens instantly later.
-    private func rememberRecent(_ url: URL) {
+    func rememberRecent(_ url: URL) {
         guard let data = try? url.bookmarkData(options: .withSecurityScope,
                                                includingResourceValuesForKeys: nil,
                                                relativeTo: nil) else { return }

@@ -8,6 +8,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var model = AppModel()
     @State private var columns: NavigationSplitViewVisibility = .all
+    @State private var showingCleanup = false
 
     var body: some View {
         // ponytail: no NavigationSplitView until a folder is scanned — that's
@@ -31,9 +32,17 @@ struct ContentView: View {
                 PreviewPanel(model: model, node: node)
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
+
+            if model.root == nil {
+                CleanupPreview { showingCleanup = true }
+                    .padding(24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity,
+                           alignment: .bottomTrailing)
+            }
         }
         .animation(.easeInOut(duration: 0.18), value: model.previewing)
         .toolbar { Toolbar(model: model) }
+        .sheet(isPresented: $showingCleanup) { CleanupView(model: model) }
         .navigationTitle("Diskly")
         .alert("Trash failed", isPresented: Binding(
             get: { model.lastError != nil },
