@@ -107,11 +107,12 @@ struct CleanupView: View {
                 defer { access.stopAccessingSecurityScopedResource() }
                 do {
                     switch target.action {
-                    case .trashContents(let url):
-                        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-                        for item in try FileManager.default.contentsOfDirectory(
-                            at: url, includingPropertiesForKeys: nil) {
-                            try FileManager.default.trashItem(at: item, resultingItemURL: nil)
+                    case .trashContents(let urls):
+                        for url in urls where FileManager.default.fileExists(atPath: url.path) {
+                            for item in try FileManager.default.contentsOfDirectory(
+                                at: url, includingPropertiesForKeys: nil) {
+                                try FileManager.default.trashItem(at: item, resultingItemURL: nil)
+                            }
                         }
                         return nil
                     case .command(let executable, let arguments):
@@ -203,12 +204,12 @@ private struct CleanupTarget: Identifiable, Sendable {
             ?? home.appending(path: "Library/Caches/Homebrew")
         return [
             .init(name: "Homebrew", icon: "mug.fill",
-                  sizeSource: .files(brewCache),
-                  action: .trashContents(brewCache),
+                  sizeSource: .files([brewCache]),
+                  action: .trashContents([brewCache]),
                   message: "Diskly will move Homebrew's cached downloads to the Trash."),
             .init(name: "Bun cache", icon: "shippingbox",
-                  sizeSource: .files(bunCache),
-                  action: .trashContents(bunCache),
+                  sizeSource: .files([bunCache]),
+                  action: .trashContents([bunCache]),
                   message: "Diskly will move Bun's cached packages to the Trash. They can be downloaded again."),
             .init(name: "Docker", icon: "shippingbox.fill",
                   sizeSource: .docker(executable(named: "docker", home: home), home.path),
@@ -243,24 +244,28 @@ private struct CleanupTarget: Identifiable, Sendable {
 }
 
 private enum CleanupAction: Sendable {
-    case trashContents(URL)
+    case trashContents([URL])
     case command(URL, [String])
 }
 
 private enum CleanupSizeSource: Sendable {
-    case files(URL)
+    case files([URL])
     case docker(URL, String)
 
     var label: String {
         switch self {
-        case .files(let url): url.path
+        case .files(let urls): urls.count == 1 ? urls[0].path : "\(urls.count) cache locations"
         case .docker: "Docker-managed storage"
         }
     }
 
     func size() async -> Int64 {
         switch self {
-        case .files(let url): await Scanner.size(of: url)
+        case .files(let urls):
+            await withTaskGroup(of: Int64.self) { group in
+                for url in urls { group.addTask { await Scanner.size(of: url) } }
+                return await group.reduce(0, +)
+            }
         case .docker(let executable, let home): await Self.dockerSize(executable, home: home)
         }
     }
