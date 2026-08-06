@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.2 — 2026-08-06
+
+### Added
+- add safe browser caches
+
+
 ## v0.7.1 — 2026-08-06
 
 ### Added
