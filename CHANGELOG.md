@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.1 — 2026-08-06
+
+### Added
+- add cleanup feedback link
+- add more package and build caches
+
+
 ## v0.7.0 — 2026-08-06
 
 ### Added
