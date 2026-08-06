@@ -198,10 +198,24 @@ private struct CleanupTarget: Identifiable, Sendable {
     static var all: [CleanupTarget] {
         let home = QuickLocation.realHome
         let environment = ProcessInfo.processInfo.environment
-        let bunCache = configuredPath("BUN_INSTALL_CACHE_DIR", environment: environment)
+        let bunCache = configuredPath(["BUN_INSTALL_CACHE_DIR"], environment: environment)
             ?? home.appending(path: ".bun/install/cache")
-        let brewCache = configuredPath("HOMEBREW_CACHE", environment: environment)
+        let brewCache = configuredPath(["HOMEBREW_CACHE"], environment: environment)
             ?? home.appending(path: "Library/Caches/Homebrew")
+        let gradleHome = configuredPath(["GRADLE_USER_HOME"], environment: environment)
+            ?? home.appending(path: ".gradle")
+        let npmCache = configuredPath(["npm_config_cache", "NPM_CONFIG_CACHE"],
+                                      environment: environment)
+            ?? home.appending(path: ".npm")
+        let cargoHome = configuredPath(["CARGO_HOME"], environment: environment)
+            ?? home.appending(path: ".cargo")
+        let pipCache = configuredPath(["PIP_CACHE_DIR"], environment: environment)
+            ?? home.appending(path: "Library/Caches/pip")
+        let cypressCache = configuredPath(["CYPRESS_CACHE_FOLDER"], environment: environment)
+            ?? home.appending(path: "Library/Caches/Cypress")
+        let playwrightCache = environment["PLAYWRIGHT_BROWSERS_PATH"] == "0" ? nil
+            : configuredPath(["PLAYWRIGHT_BROWSERS_PATH"], environment: environment)
+                ?? home.appending(path: "Library/Caches/ms-playwright")
         return [
             .init(name: "Homebrew", icon: "mug.fill",
                   sizeSource: .files([brewCache]),
@@ -215,13 +229,36 @@ private struct CleanupTarget: Identifiable, Sendable {
                   sizeSource: .docker(executable(named: "docker", home: home), home.path),
                   action: .command(executable(named: "docker", home: home),
                                    ["system", "prune", "--all", "--force"]),
-                  message: "Docker will remove stopped containers, unused networks, build cache, and all unused images. Volumes are kept.")
-        ]
+                  message: "Docker will remove stopped containers, unused networks, build cache, and all unused images. Volumes are kept."),
+            fileTarget("Gradle", icon: "hammer.fill", urls: [gradleHome.appending(path: "caches")]),
+            fileTarget("Xcode DerivedData", icon: "hammer.circle.fill",
+                       urls: [home.appending(path: "Library/Developer/Xcode/DerivedData")]),
+            fileTarget("npm", icon: "shippingbox.circle.fill",
+                       urls: [npmCache.appending(path: "_cacache")]),
+            fileTarget("Cargo", icon: "shippingbox.fill", urls: [
+                cargoHome.appending(path: "registry/cache"),
+                cargoHome.appending(path: "registry/src"),
+                cargoHome.appending(path: "git/db"),
+                cargoHome.appending(path: "git/checkouts")
+            ]),
+            fileTarget("pip", icon: "cube.fill", urls: [pipCache]),
+            fileTarget("Cypress", icon: "checkmark.circle.fill", urls: [cypressCache])
+        ] + (playwrightCache.map {
+            [fileTarget("Playwright browsers", icon: "globe", urls: [$0])]
+        } ?? [])
     }
 
-    private static func configuredPath(_ key: String,
+    private static func fileTarget(_ name: String, icon: String,
+                                   urls: [URL]) -> CleanupTarget {
+        .init(name: name, icon: icon, sizeSource: .files(urls),
+              action: .trashContents(urls),
+              message: "Diskly will move \(name)'s disposable cache to the Trash.")
+    }
+
+    private static func configuredPath(_ keys: [String],
                                        environment: [String: String]) -> URL? {
-        guard let value = environment[key], !value.isEmpty else { return nil }
+        guard let value = keys.lazy.compactMap({ environment[$0] }).first(where: { !$0.isEmpty })
+        else { return nil }
         return URL(filePath: NSString(string: value).expandingTildeInPath)
     }
 
