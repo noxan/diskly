@@ -108,12 +108,8 @@ struct CleanupView: View {
                 do {
                     switch target.action {
                     case .trashContents(let urls):
-                        for url in urls where FileManager.default.fileExists(atPath: url.path) {
-                            for item in try FileManager.default.contentsOfDirectory(
-                                at: url, includingPropertiesForKeys: nil) {
-                                try FileManager.default.trashItem(at: item, resultingItemURL: nil)
-                            }
-                        }
+                        try trashContents(urls, named: target.name,
+                                          home: URL(filePath: homePath))
                         return nil
                     case .command(let executable, let arguments):
                         let process = Process()
@@ -185,6 +181,28 @@ struct CleanupView: View {
         model.rememberRecent(url)
         return url
     }
+}
+
+nonisolated private func trashContents(_ urls: [URL], named name: String,
+                                       home: URL) throws {
+    let files = FileManager.default
+    let staging = home.appending(path: "Library/Caches/Diskly \(name) Cache \(UUID().uuidString.prefix(8))")
+    var staged = false
+    do {
+        for url in urls where files.fileExists(atPath: url.path) {
+            let destination = urls.count == 1 ? staging : staging.appending(path: url.lastPathComponent)
+            try files.createDirectory(at: destination, withIntermediateDirectories: true)
+            for item in try files.contentsOfDirectory(at: url, includingPropertiesForKeys: nil) {
+                try files.moveItem(at: item, to: destination.appending(path: item.lastPathComponent))
+                staged = true
+            }
+        }
+    } catch {
+        if staged { try? files.trashItem(at: staging, resultingItemURL: nil) }
+        throw error
+    }
+    if staged { try files.trashItem(at: staging, resultingItemURL: nil) }
+    else { try? files.removeItem(at: staging) }
 }
 
 private struct CleanupTarget: Identifiable, Sendable {
