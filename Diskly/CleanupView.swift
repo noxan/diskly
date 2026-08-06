@@ -100,18 +100,28 @@ struct CleanupView: View {
         let homePath = QuickLocation.realHome.path
         isCleaning = true
         Task {
-            let failure = await Task.detached(priority: .userInitiated) {
+            let failure: String? = await Task.detached(priority: .userInitiated) {
                 defer { access.stopAccessingSecurityScopedResource() }
-                let process = Process()
-                process.executableURL = target.executableURL
-                process.arguments = target.arguments
-                process.environment = ProcessInfo.processInfo.environment.merging(
-                    ["HOME": homePath], uniquingKeysWith: { _, home in home })
                 do {
-                    try process.run()
-                    process.waitUntilExit()
-                    return process.terminationReason == .exit && process.terminationStatus == 0
-                        ? nil : "\(target.name) exited with status \(process.terminationStatus)."
+                    switch target.action {
+                    case .trashContents(let url):
+                        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+                        for item in try FileManager.default.contentsOfDirectory(
+                            at: url, includingPropertiesForKeys: nil) {
+                            try FileManager.default.trashItem(at: item, resultingItemURL: nil)
+                        }
+                        return nil
+                    case .command(let executable, let arguments):
+                        let process = Process()
+                        process.executableURL = executable
+                        process.arguments = arguments
+                        process.environment = ProcessInfo.processInfo.environment.merging(
+                            ["HOME": homePath], uniquingKeysWith: { _, home in home })
+                        try process.run()
+                        process.waitUntilExit()
+                        return process.terminationReason == .exit && process.terminationStatus == 0
+                            ? nil : "\(target.name) exited with status \(process.terminationStatus)."
+                    }
                 } catch { return error.localizedDescription }
             }.value
             isCleaning = false
@@ -170,8 +180,7 @@ private struct CleanupTarget: Identifiable, Sendable {
     let name: String
     let icon: String
     let sizeSource: CleanupSizeSource
-    let executableURL: URL
-    let arguments: [String]
+    let action: CleanupAction
     let message: String
     var id: String { name }
 
@@ -180,18 +189,17 @@ private struct CleanupTarget: Identifiable, Sendable {
         return [
             .init(name: "Homebrew", icon: "mug.fill",
                   sizeSource: .files(home.appending(path: "Library/Caches/Homebrew")),
-                  executableURL: executable(named: "brew", home: home),
-                  arguments: ["cleanup", "--prune=all"],
-                  message: "Homebrew will remove cached downloads and old package versions."),
+                  action: .trashContents(home.appending(path: "Library/Caches/Homebrew")),
+                  message: "Diskly will move Homebrew's cached downloads to the Trash."),
             .init(name: "Bun cache", icon: "shippingbox",
                   sizeSource: .files(home.appending(path: ".bun/install/cache")),
-                  executableURL: executable(named: "bun", home: home),
-                  arguments: ["pm", "cache", "rm"],
+                  action: .command(executable(named: "bun", home: home),
+                                   ["pm", "cache", "rm"]),
                   message: "Bun will permanently remove its cached packages. They can be downloaded again."),
             .init(name: "Docker", icon: "shippingbox.fill",
                   sizeSource: .docker(executable(named: "docker", home: home), home.path),
-                  executableURL: executable(named: "docker", home: home),
-                  arguments: ["system", "prune", "--all", "--force"],
+                  action: .command(executable(named: "docker", home: home),
+                                   ["system", "prune", "--all", "--force"]),
                   message: "Docker will remove stopped containers, unused networks, build cache, and all unused images. Volumes are kept.")
         ]
     }
@@ -204,6 +212,11 @@ private struct CleanupTarget: Identifiable, Sendable {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
             ?? candidates[0]
     }
+}
+
+private enum CleanupAction: Sendable {
+    case trashContents(URL)
+    case command(URL, [String])
 }
 
 private enum CleanupSizeSource: Sendable {
