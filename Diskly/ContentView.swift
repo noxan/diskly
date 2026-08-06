@@ -15,7 +15,9 @@ struct ContentView: View {
         // what auto-generates the sidebar toggle. Welcome screen stands alone.
         ZStack {
             Group {
-                if model.root == nil {
+                if showingCleanup {
+                    CleanupView(model: model, onDone: { showingCleanup = false })
+                } else if model.root == nil {
                     Welcome(model: model)
                 } else {
                     NavigationSplitView(columnVisibility: $columns) {
@@ -33,7 +35,7 @@ struct ContentView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
 
-            if model.root == nil {
+            if model.root == nil && !showingCleanup {
                 CleanupPreview { showingCleanup = true }
                     .padding(24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity,
@@ -42,7 +44,6 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.18), value: model.previewing)
         .toolbar { Toolbar(model: model) }
-        .sheet(isPresented: $showingCleanup) { CleanupView(model: model) }
         .navigationTitle("Diskly")
         .alert("Trash failed", isPresented: Binding(
             get: { model.lastError != nil },

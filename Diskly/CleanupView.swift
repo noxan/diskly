@@ -27,8 +27,8 @@ struct CleanupPreview: View {
 }
 
 struct CleanupView: View {
-    @Environment(\.dismiss) private var dismiss
     let model: AppModel
+    let onDone: () -> Void
     @State private var pending: CleanupTarget?
     @State private var isCleaning = false
     @State private var isScanning = false
@@ -47,7 +47,7 @@ struct CleanupView: View {
                         Task { await scanSizes(access: access) }
                     }
                 }
-                Button("Done") { dismiss() }
+                Button("Done", action: onDone)
             }
 
             ForEach(CleanupTarget.all) { target in
@@ -75,7 +75,7 @@ struct CleanupView: View {
             Spacer()
         }
         .padding(24)
-        .frame(width: 520, height: 280)
+        .frame(maxWidth: 700, maxHeight: .infinity)
         .task { await refreshSizes() }
         .confirmationDialog("Clean \(pending?.name ?? "cache")?", isPresented: Binding(
             get: { pending != nil }, set: { if !$0 { pending = nil } }
