@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.0 — 2026-08-06
+
+### Added
+- split cleanup into safe and prune modes
+- add common app cache targets
+
+### Changed
+- move prune mode into advanced menu
+
+
 ## v0.6.0 — 2026-08-06
 
 ### Added
