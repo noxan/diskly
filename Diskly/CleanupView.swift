@@ -113,14 +113,21 @@ struct CleanupView: View {
                         return nil
                     case .command(let executable, let arguments):
                         let process = Process()
+                        let errors = Pipe()
                         process.executableURL = executable
                         process.arguments = arguments
+                        process.standardError = errors
                         process.environment = ProcessInfo.processInfo.environment.merging(
                             ["HOME": homePath], uniquingKeysWith: { _, home in home })
                         try process.run()
                         process.waitUntilExit()
-                        return process.terminationReason == .exit && process.terminationStatus == 0
-                            ? nil : "\(target.name) exited with status \(process.terminationStatus)."
+                        guard process.terminationReason != .exit || process.terminationStatus != 0
+                        else { return nil }
+                        let detail = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(),
+                                            as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                        return detail.isEmpty
+                            ? "\(target.name) exited with status \(process.terminationStatus)."
+                            : detail
                     }
                 } catch { return error.localizedDescription }
             }.value
