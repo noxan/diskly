@@ -292,6 +292,12 @@ private struct CleanupTarget: Identifiable, Sendable {
             ?? home.appending(path: ".cargo")
         let pipCache = configuredPath(["PIP_CACHE_DIR"], environment: environment)
             ?? home.appending(path: "Library/Caches/pip")
+        let uvCache = configuredPath(["UV_CACHE_DIR"], environment: environment)
+            ?? home.appending(path: "Library/Caches/uv")
+        let yarnCache = configuredPath(["YARN_CACHE_FOLDER"], environment: environment)
+            ?? home.appending(path: "Library/Caches/Yarn")
+        let goCache = configuredPath(["GOCACHE"], environment: environment)
+            ?? home.appending(path: "Library/Caches/go-build")
         let cypressCache = configuredPath(["CYPRESS_CACHE_FOLDER"], environment: environment)
             ?? home.appending(path: "Library/Caches/Cypress")
         let playwrightCache = environment["PLAYWRIGHT_BROWSERS_PATH"] == "0" ? nil
@@ -326,6 +332,13 @@ private struct CleanupTarget: Identifiable, Sendable {
                 cargoHome.appending(path: "git/checkouts")
             ]),
             fileTarget("pip", icon: "cube.fill", urls: [pipCache]),
+            fileTarget("uv", icon: "hare.fill", urls: [uvCache]),
+            fileTarget("pnpm", icon: "shippingbox.fill", urls: [
+                home.appending(path: "Library/pnpm/store"),
+                home.appending(path: ".pnpm-store")
+            ]),
+            fileTarget("Yarn", icon: "shippingbox.circle.fill", urls: [yarnCache]),
+            fileTarget("Go build", icon: "hammer.fill", urls: [goCache]),
             fileTarget("Google apps", icon: "globe", urls: [
                 home.appending(path: "Library/Caches/Google")
             ]),
