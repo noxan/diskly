@@ -13,7 +13,8 @@ struct CleanupPreview: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("NEW").font(.caption2.bold()).foregroundStyle(.tint)
                     Text("Clean developer caches").fontWeight(.medium)
-                    Text("Start with Bun").font(.caption).foregroundStyle(.secondary)
+                    Text("See what can be safely reclaimed")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Image(systemName: "chevron.right").foregroundStyle(.tertiary)
             }
