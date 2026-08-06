@@ -12,7 +12,7 @@ struct CleanupPreview: View {
                     .foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("NEW").font(.caption2.bold()).foregroundStyle(.tint)
-                    Text("Clean developer caches").fontWeight(.medium)
+                    Text("Clean app caches").fontWeight(.medium)
                     Text("See what can be safely reclaimed")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -224,7 +224,7 @@ struct CleanupView: View {
         panel.allowsMultipleSelection = false
         panel.directoryURL = home.deletingLastPathComponent()
         panel.prompt = "Allow"
-        panel.message = "Choose your Home folder to let Diskly clean developer caches"
+        panel.message = "Choose your Home folder to let Diskly clean app caches"
         guard panel.runModal() == .OK, let url = panel.url,
               home.path == url.path || home.path.hasPrefix(url.path + "/"),
               url.startAccessingSecurityScopedResource() else { return nil }
@@ -292,8 +292,8 @@ private struct CleanupTarget: Identifiable, Sendable {
                   message: "Diskly will move Homebrew's cached downloads to the Trash.",
                   mode: .safe),
             .init(name: "Bun cache", icon: "shippingbox",
-                  sizeSource: .files([bunCache]),
-                  action: .trashContents([bunCache]),
+                  sizeSource: .files([bunCache, home.appending(path: "Library/Caches/bun")]),
+                  action: .trashContents([bunCache, home.appending(path: "Library/Caches/bun")]),
                   message: "Diskly will move Bun's cached packages to the Trash. They can be downloaded again.",
                   mode: .safe),
             .init(name: "Docker", icon: "shippingbox.fill",
@@ -314,6 +314,39 @@ private struct CleanupTarget: Identifiable, Sendable {
                 cargoHome.appending(path: "git/checkouts")
             ]),
             fileTarget("pip", icon: "cube.fill", urls: [pipCache]),
+            fileTarget("Google apps", icon: "globe", urls: [
+                home.appending(path: "Library/Caches/Google")
+            ]),
+            fileTarget("Dia", icon: "globe", urls: [
+                home.appending(path: "Library/Caches/Dia"),
+                home.appending(path: "Library/Caches/company.thebrowser.dia")
+            ]),
+            fileTarget("Spotify", icon: "music.note", urls: [
+                home.appending(path: "Library/Caches/com.spotify.client")
+            ]),
+            fileTarget("App updater downloads", icon: "arrow.down.circle.fill", urls: [
+                home.appending(path: "Library/Caches/loom-updater"),
+                home.appending(path: "Library/Caches/beepertexts-updater"),
+                home.appending(path: "Library/Caches/@granolaelectron-updater")
+            ]),
+            fileTarget("TypeScript", icon: "curlybraces", urls: [
+                home.appending(path: "Library/Caches/typescript")
+            ]),
+            fileTarget("Deno", icon: "shippingbox.circle", urls: [
+                home.appending(path: "Library/Caches/deno")
+            ]),
+            fileTarget("Electron", icon: "atom", urls: [
+                home.appending(path: "Library/Caches/electron")
+            ]),
+            fileTarget("SwiftPM", icon: "swift", urls: [
+                home.appending(path: "Library/Caches/org.swift.swiftpm")
+            ]),
+            fileTarget("node-gyp", icon: "wrench.and.screwdriver.fill", urls: [
+                home.appending(path: "Library/Caches/node-gyp")
+            ]),
+            fileTarget("Adobe", icon: "paintbrush.fill", urls: [
+                home.appending(path: "Library/Caches/Adobe")
+            ]),
             fileTarget("Cypress", icon: "checkmark.circle.fill", urls: [cypressCache], mode: .prune)
         ] + (playwrightCache.map {
             [fileTarget("Playwright browsers", icon: "globe", urls: [$0], mode: .prune)]
