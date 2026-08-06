@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.0 — 2026-08-06
+
+### Added
+- Bun, Docker, Homebrew, and common developer cache cleanup targets
+- cache size preview for cleanup operations
+- cleanup target grouping and full cleanup option
+
+### Changed
+- redesigned cleanup interface with full-screen view, scrollable targets, and improved navigation
+- multi-directory cache target support
+
+### Fixed
+- cleanup scan oversubscription and performance
+- error display for cleanup operations
+- locate tools and caches in non-standard installation paths
+- improve cache cleanup in Trash and sandbox environments
+
+
 ## v0.5.0 — 2026-07-02
 
 ### Changed
