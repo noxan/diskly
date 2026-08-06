@@ -193,14 +193,19 @@ private struct CleanupTarget: Identifiable, Sendable {
 
     static var all: [CleanupTarget] {
         let home = QuickLocation.realHome
+        let environment = ProcessInfo.processInfo.environment
+        let bunCache = configuredPath("BUN_INSTALL_CACHE_DIR", environment: environment)
+            ?? home.appending(path: ".bun/install/cache")
+        let brewCache = configuredPath("HOMEBREW_CACHE", environment: environment)
+            ?? home.appending(path: "Library/Caches/Homebrew")
         return [
             .init(name: "Homebrew", icon: "mug.fill",
-                  sizeSource: .files(home.appending(path: "Library/Caches/Homebrew")),
-                  action: .trashContents(home.appending(path: "Library/Caches/Homebrew")),
+                  sizeSource: .files(brewCache),
+                  action: .trashContents(brewCache),
                   message: "Diskly will move Homebrew's cached downloads to the Trash."),
             .init(name: "Bun cache", icon: "shippingbox",
-                  sizeSource: .files(home.appending(path: ".bun/install/cache")),
-                  action: .trashContents(home.appending(path: ".bun/install/cache")),
+                  sizeSource: .files(bunCache),
+                  action: .trashContents(bunCache),
                   message: "Diskly will move Bun's cached packages to the Trash. They can be downloaded again."),
             .init(name: "Docker", icon: "shippingbox.fill",
                   sizeSource: .docker(executable(named: "docker", home: home), home.path),
@@ -210,13 +215,27 @@ private struct CleanupTarget: Identifiable, Sendable {
         ]
     }
 
+    private static func configuredPath(_ key: String,
+                                       environment: [String: String]) -> URL? {
+        guard let value = environment[key], !value.isEmpty else { return nil }
+        return URL(filePath: NSString(string: value).expandingTildeInPath)
+    }
+
     private static func executable(named name: String, home: URL) -> URL {
-        let candidates = [home.appending(path: ".bun/bin/\(name)"),
-                          URL(filePath: "/etc/profiles/per-user/\(NSUserName())/bin/\(name)"),
-                          URL(filePath: "/opt/homebrew/bin/\(name)"),
-                          URL(filePath: "/usr/local/bin/\(name)")]
+        let pathCandidates = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map { URL(filePath: String($0)).appending(path: name) }
+        let candidates = pathCandidates + [
+            home.appending(path: ".local/bin/\(name)"),
+            home.appending(path: ".bun/bin/\(name)"),
+            URL(filePath: "/etc/profiles/per-user/\(NSUserName())/bin/\(name)"),
+            URL(filePath: "/run/current-system/sw/bin/\(name)"),
+            URL(filePath: "/opt/homebrew/bin/\(name)"),
+            URL(filePath: "/usr/local/bin/\(name)"),
+            URL(filePath: "/opt/local/bin/\(name)")
+        ]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
-            ?? candidates[0]
+            ?? home.appending(path: ".local/bin/\(name)")
     }
 }
 
