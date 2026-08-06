@@ -56,16 +56,28 @@ struct CleanupView: View {
                         Task { await scanSizes(access: access) }
                     }
                 }
-                Button("Clean All · \(total.byteString)") { confirmAll = true }
+                Menu {
+                    Button {
+                        mode = .safe
+                    } label: {
+                        Label("Safe Cleanup", systemImage: mode == .safe ? "checkmark" : "shield")
+                    }
+                    Divider()
+                    Button {
+                        mode = .prune
+                    } label: {
+                        Label("Prune…", systemImage: mode == .prune ? "checkmark" : "exclamationmark.triangle")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .help("Advanced cleanup options")
+
+                Button("\(mode == .prune ? "Prune" : "Clean") All · \(total.byteString)") { confirmAll = true }
                     .buttonStyle(.borderedProminent)
                     .tint(mode == .prune ? .red : .accentColor)
                     .disabled(isCleaning || available.isEmpty)
             }
-
-            Picker("Mode", selection: $mode) {
-                ForEach(CleanupMode.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
 
             if mode == .prune {
                 Label("May remove installed runtimes, images, or stopped containers.",
