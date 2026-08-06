@@ -36,11 +36,12 @@ struct CleanupView: View {
     @State private var needsAccess = false
     @State private var showCleaned = false
     @State private var confirmAll = false
+    @State private var mode: CleanupMode = .safe
     @State private var sizes: [String: Int64] = [:]
     @State private var error: String?
 
     var body: some View {
-        let targets = CleanupTarget.all
+        let targets = CleanupTarget.all.filter { $0.mode == mode }
         let cleaned = targets.filter { sizes[$0.id] == 0 }
         let available = targets.filter { sizes[$0.id] != 0 }
         let total = available.reduce(Int64(0)) { $0 + (sizes[$1.id] ?? 0) }
@@ -57,7 +58,19 @@ struct CleanupView: View {
                 }
                 Button("Clean All · \(total.byteString)") { confirmAll = true }
                     .buttonStyle(.borderedProminent)
+                    .tint(mode == .prune ? .red : .accentColor)
                     .disabled(isCleaning || available.isEmpty)
+            }
+
+            Picker("Mode", selection: $mode) {
+                ForEach(CleanupMode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            if mode == .prune {
+                Label("May remove installed runtimes, images, or stopped containers.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
             }
 
             ScrollView {
@@ -81,7 +94,7 @@ struct CleanupView: View {
         .padding(24)
         .frame(maxWidth: 700, maxHeight: .infinity)
         .task { await refreshSizes() }
-        .confirmationDialog("Clean \(pending?.name ?? "cache")?", isPresented: Binding(
+        .confirmationDialog("\(mode == .prune ? "Prune" : "Clean") \(pending?.name ?? "cache")?", isPresented: Binding(
             get: { pending != nil }, set: { if !$0 { pending = nil } }
         )) {
             if let target = pending {
@@ -93,8 +106,11 @@ struct CleanupView: View {
         } message: {
             Text(pending?.message ?? "")
         }
-        .confirmationDialog("Clean all developer caches?", isPresented: $confirmAll) {
-            Button("Clean All", role: .destructive) { clean(available) }
+        .confirmationDialog(mode == .prune ? "Danger: prune everything listed?" : "Clean all safe caches?",
+                            isPresented: $confirmAll) {
+            Button(mode == .prune ? "Prune All" : "Clean All", role: .destructive) {
+                clean(available)
+            }
         } message: {
             Text("Up to \(total.byteString) will be reclaimed. File caches are grouped in the Trash; tool-managed cleanup cannot be undone there.")
         }
@@ -245,6 +261,7 @@ private struct CleanupTarget: Identifiable, Sendable {
     let sizeSource: CleanupSizeSource
     let action: CleanupAction
     let message: String
+    let mode: CleanupMode
     var id: String { name }
 
     static var all: [CleanupTarget] {
@@ -272,16 +289,19 @@ private struct CleanupTarget: Identifiable, Sendable {
             .init(name: "Homebrew", icon: "mug.fill",
                   sizeSource: .files([brewCache]),
                   action: .trashContents([brewCache]),
-                  message: "Diskly will move Homebrew's cached downloads to the Trash."),
+                  message: "Diskly will move Homebrew's cached downloads to the Trash.",
+                  mode: .safe),
             .init(name: "Bun cache", icon: "shippingbox",
                   sizeSource: .files([bunCache]),
                   action: .trashContents([bunCache]),
-                  message: "Diskly will move Bun's cached packages to the Trash. They can be downloaded again."),
+                  message: "Diskly will move Bun's cached packages to the Trash. They can be downloaded again.",
+                  mode: .safe),
             .init(name: "Docker", icon: "shippingbox.fill",
                   sizeSource: .docker(executable(named: "docker", home: home), home.path),
                   action: .command(executable(named: "docker", home: home),
                                    ["system", "prune", "--all", "--force"]),
-                  message: "Docker will remove stopped containers, unused networks, build cache, and all unused images. Volumes are kept."),
+                  message: "Docker will remove stopped containers, unused networks, build cache, and all unused images. Volumes are kept.",
+                  mode: .prune),
             fileTarget("Gradle", icon: "hammer.fill", urls: [gradleHome.appending(path: "caches")]),
             fileTarget("Xcode DerivedData", icon: "hammer.circle.fill",
                        urls: [home.appending(path: "Library/Developer/Xcode/DerivedData")]),
@@ -294,17 +314,18 @@ private struct CleanupTarget: Identifiable, Sendable {
                 cargoHome.appending(path: "git/checkouts")
             ]),
             fileTarget("pip", icon: "cube.fill", urls: [pipCache]),
-            fileTarget("Cypress", icon: "checkmark.circle.fill", urls: [cypressCache])
+            fileTarget("Cypress", icon: "checkmark.circle.fill", urls: [cypressCache], mode: .prune)
         ] + (playwrightCache.map {
-            [fileTarget("Playwright browsers", icon: "globe", urls: [$0])]
+            [fileTarget("Playwright browsers", icon: "globe", urls: [$0], mode: .prune)]
         } ?? [])
     }
 
     private static func fileTarget(_ name: String, icon: String,
-                                   urls: [URL]) -> CleanupTarget {
+                                   urls: [URL], mode: CleanupMode = .safe) -> CleanupTarget {
         .init(name: name, icon: icon, sizeSource: .files(urls),
               action: .trashContents(urls),
-              message: "Diskly will move \(name)'s disposable cache to the Trash.")
+              message: "Diskly will move \(name)'s disposable cache to the Trash.",
+              mode: mode)
     }
 
     private static func configuredPath(_ keys: [String],
@@ -330,6 +351,12 @@ private struct CleanupTarget: Identifiable, Sendable {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
             ?? home.appending(path: ".local/bin/\(name)")
     }
+}
+
+private enum CleanupMode: String, CaseIterable, Identifiable, Sendable {
+    case safe = "Safe"
+    case prune = "Prune"
+    var id: Self { self }
 }
 
 private enum CleanupAction: Sendable {
