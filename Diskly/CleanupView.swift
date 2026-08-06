@@ -55,7 +55,7 @@ struct CleanupView: View {
                     Image(systemName: target.icon).font(.title2).foregroundStyle(.tint)
                     VStack(alignment: .leading) {
                         Text(target.name).fontWeight(.medium)
-                        Text(target.cacheURL.path).font(.caption).foregroundStyle(.secondary)
+                        Text(target.sizeSource.label).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     if let size = sizes[target.id] {
@@ -136,8 +136,8 @@ struct CleanupView: View {
         await withTaskGroup(of: (String, Int64).self) { group in
             for target in CleanupTarget.all {
                 let id = target.id
-                let url = target.cacheURL
-                group.addTask { (id, await Scanner.size(of: url)) }
+                let source = target.sizeSource
+                group.addTask { (id, await source.size()) }
             }
             for await (id, size) in group { sizes[id] = size }
         }
@@ -169,7 +169,7 @@ struct CleanupView: View {
 private struct CleanupTarget: Identifiable, Sendable {
     let name: String
     let icon: String
-    let cacheURL: URL
+    let sizeSource: CleanupSizeSource
     let executableURL: URL
     let arguments: [String]
     let message: String
@@ -179,15 +179,20 @@ private struct CleanupTarget: Identifiable, Sendable {
         let home = QuickLocation.realHome
         return [
             .init(name: "Homebrew", icon: "mug.fill",
-                  cacheURL: home.appending(path: "Library/Caches/Homebrew"),
+                  sizeSource: .files(home.appending(path: "Library/Caches/Homebrew")),
                   executableURL: executable(named: "brew", home: home),
                   arguments: ["cleanup", "--prune=all"],
                   message: "Homebrew will remove cached downloads and old package versions."),
             .init(name: "Bun cache", icon: "shippingbox",
-                  cacheURL: home.appending(path: ".bun/install/cache"),
+                  sizeSource: .files(home.appending(path: ".bun/install/cache")),
                   executableURL: executable(named: "bun", home: home),
                   arguments: ["pm", "cache", "rm"],
-                  message: "Bun will permanently remove its cached packages. They can be downloaded again.")
+                  message: "Bun will permanently remove its cached packages. They can be downloaded again."),
+            .init(name: "Docker", icon: "shippingbox.fill",
+                  sizeSource: .docker(executable(named: "docker", home: home), home.path),
+                  executableURL: executable(named: "docker", home: home),
+                  arguments: ["system", "prune", "--all", "--force"],
+                  message: "Docker will remove stopped containers, unused networks, build cache, and all unused images. Volumes are kept.")
         ]
     }
 
@@ -198,6 +203,58 @@ private struct CleanupTarget: Identifiable, Sendable {
                           URL(filePath: "/usr/local/bin/\(name)")]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
             ?? candidates[0]
+    }
+}
+
+private enum CleanupSizeSource: Sendable {
+    case files(URL)
+    case docker(URL, String)
+
+    var label: String {
+        switch self {
+        case .files(let url): url.path
+        case .docker: "Docker-managed storage"
+        }
+    }
+
+    func size() async -> Int64 {
+        switch self {
+        case .files(let url): await Scanner.size(of: url)
+        case .docker(let executable, let home): await Self.dockerSize(executable, home: home)
+        }
+    }
+
+    private static func dockerSize(_ executable: URL, home: String) async -> Int64 {
+        await Task.detached {
+            assert(byteCount("1.5GB") == 1_500_000_000)
+            let process = Process()
+            let output = Pipe()
+            process.executableURL = executable
+            process.arguments = ["system", "df", "--format", "{{json .}}"]
+            process.environment = ProcessInfo.processInfo.environment.merging(
+                ["HOME": home], uniquingKeysWith: { _, home in home })
+            process.standardOutput = output
+            process.standardError = FileHandle.nullDevice
+            do {
+                try process.run()
+                process.waitUntilExit()
+                guard process.terminationStatus == 0 else { return 0 }
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                return String(decoding: data, as: UTF8.self).split(separator: "\n").reduce(0) {
+                    guard let json = try? JSONSerialization.jsonObject(with: Data($1.utf8)) as? [String: String],
+                          let value = json["Reclaimable"]?.split(separator: " ").first else { return $0 }
+                    return $0 + byteCount(String(value))
+                }
+            } catch { return 0 }
+        }.value
+    }
+
+    nonisolated private static func byteCount(_ value: String) -> Int64 {
+        let units: [(String, Double)] = [("TB", 1e12), ("GB", 1e9), ("MB", 1e6),
+                                         ("kB", 1e3), ("B", 1)]
+        guard let (suffix, multiplier) = units.first(where: { value.hasSuffix($0.0) }),
+              let number = Double(value.dropLast(suffix.count)) else { return 0 }
+        return Int64(number * multiplier)
     }
 }
 
