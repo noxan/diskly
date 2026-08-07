@@ -54,8 +54,10 @@ nonisolated final class DirRegistry: @unchecked Sendable {
     /// are walked via their firmlink path, never via the Data mount path.
     private let firmlinkTargets: Set<String>
     private let skipMountedVolumes: Bool
+    private let rootPath: String
 
     init(rootPath: String) {
+        self.rootPath = rootPath
         self.firmlinkTargets = Self.loadFirmlinkTargets()
         self.skipMountedVolumes = rootPath == "/"
     }
@@ -67,6 +69,9 @@ nonisolated final class DirRegistry: @unchecked Sendable {
     /// Identity comes from fstat(2) on the open fd — no path re-resolution.
     func shouldWalk(path: String, fd: Int32) -> Bool {
         if skipMountedVolumes, path == "/Volumes" { return false }
+        // Nix's dedup index contains hard links to files already represented
+        // by normal store paths. Walking it is slow and double-counts storage.
+        if path == "/nix/store/.links", path != rootPath { return false }
         let dataMount = "/System/Volumes/Data/"
         if path.hasPrefix(dataMount) {
             let rest = String(path.dropFirst(dataMount.count))
