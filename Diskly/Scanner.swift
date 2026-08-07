@@ -11,6 +11,7 @@
 
 import Foundation
 import Darwin
+import os
 import Synchronization
 
 /// Caps how many directory subtrees scan concurrently. Unbounded fan-out
@@ -52,9 +53,11 @@ nonisolated final class DirRegistry: @unchecked Sendable {
     /// Subpaths of the Data volume that have a firmlink source at "/" — these
     /// are walked via their firmlink path, never via the Data mount path.
     private let firmlinkTargets: Set<String>
+    private let skipMountedVolumes: Bool
 
-    init() {
+    init(rootPath: String) {
         self.firmlinkTargets = Self.loadFirmlinkTargets()
+        self.skipMountedVolumes = rootPath == "/"
     }
 
     /// True if the directory open at `fd` (full path `path`) should be
@@ -63,6 +66,7 @@ nonisolated final class DirRegistry: @unchecked Sendable {
     /// - any directory whose (device, inode) was already walked.
     /// Identity comes from fstat(2) on the open fd — no path re-resolution.
     func shouldWalk(path: String, fd: Int32) -> Bool {
+        if skipMountedVolumes, path == "/Volumes" { return false }
         let dataMount = "/System/Volumes/Data/"
         if path.hasPrefix(dataMount) {
             let rest = String(path.dropFirst(dataMount.count))
@@ -95,6 +99,16 @@ nonisolated final class DirRegistry: @unchecked Sendable {
 // MARK: - Scanner primitives
 
 nonisolated enum Scanner {
+    private static let log = Logger(subsystem: "com.diskly.app", category: "scan")
+
+    static func reportSlow(_ action: String, path: String, since start: Date,
+                           threshold: TimeInterval = 1) {
+        let seconds = Date().timeIntervalSince(start)
+        if seconds >= threshold {
+            log.notice("Slow scan \(action, privacy: .public): \(seconds, format: .fixed(precision: 2))s \(path, privacy: .public)")
+        }
+    }
+
     /// One-time process setup for scanning, triggered on first directory open:
     /// - Never materialize dataless (iCloud / file-provider) files: open() on
     ///   a dataless directory otherwise blocks on a network recall — a disk
@@ -117,7 +131,10 @@ nonisolated enum Scanner {
     /// Open a directory for scanning. Returns -1 on error.
     static func openDir(_ path: String) -> Int32 {
         _ = scanSetup
-        return open(path, O_RDONLY | O_DIRECTORY)
+        let start = Date()
+        let fd = open(path, O_RDONLY | O_DIRECTORY)
+        reportSlow("open", path: path, since: start)
+        return fd
     }
 
     /// Open a subdirectory relative to an already-open parent directory.
@@ -125,8 +142,11 @@ nonisolated enum Scanner {
     /// was resolved once when the parent was opened. Profiling showed the
     /// scan bottlenecked in full-path open(), which re-resolves every path
     /// component for every directory.
-    static func openDir(at parent: Int32, _ name: String) -> Int32 {
-        openat(parent, name, O_RDONLY | O_DIRECTORY)
+    static func openDir(at parent: Int32, _ name: String, path: String) -> Int32 {
+        let start = Date()
+        let fd = openat(parent, name, O_RDONLY | O_DIRECTORY)
+        reportSlow("open", path: path, since: start)
+        return fd
     }
 
     /// One directory entry: name, type, and allocated size — everything the scan
@@ -143,11 +163,13 @@ nonisolated enum Scanner {
         let fd = openDir(path)
         guard fd >= 0 else { return [] }
         defer { close(fd) }
-        return entries(fd: fd)
+        return entries(fd: fd, path: path)
     }
 
     /// Core bulk read from an already-open directory fd. Does NOT close `fd`.
-    static func entries(fd: Int32) -> [DirEntry] {
+    static func entries(fd: Int32, path: String) -> [DirEntry] {
+        let start = Date()
+        defer { reportSlow("enumerate", path: path, since: start) }
         var al = attrlist()
         al.bitmapcount = u_short(ATTR_BIT_MAP_COUNT)
         al.commonattr = attrgroup_t(UInt32(ATTR_CMN_RETURNED_ATTRS) | UInt32(ATTR_CMN_ERROR)

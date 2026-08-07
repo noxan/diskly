@@ -50,11 +50,11 @@ let CORES = ProcessInfo.processInfo.activeProcessorCount
 /// walked so children can do the same.
 func disklyBuild(parentFD: Int32, name: String, path: String, _ node: Node,
                  _ gate: ScanGate, _ registry: DirRegistry) async {
-    let fd = Scanner.openDir(at: parentFD, name)
+    let fd = Scanner.openDir(at: parentFD, name, path: path)
     guard fd >= 0 else { return }
     defer { close(fd) }
     guard registry.shouldWalk(path: path, fd: fd) else { return }
-    let contents = Scanner.entries(fd: fd)
+    let contents = Scanner.entries(fd: fd, path: path)
     itemCount.withLock { $0 += contents.count }
     var kids: [Node] = []
     kids.reserveCapacity(contents.count)
@@ -111,9 +111,10 @@ func disklyScan(_ root: URL) async -> Node {
     guard rootFD >= 0 else { return n }
     defer { close(rootFD) }
     let gate = ScanGate(limit: CORES)
-    let registry = DirRegistry()
+    let registry = DirRegistry(rootPath: rootPath)
+    let childPath: (String) -> String = { rootPath == "/" ? "/" + $0 : rootPath + "/" + $0 }
     guard registry.shouldWalk(path: rootPath, fd: rootFD) else { return n }
-    let top = Scanner.entries(fd: rootFD)
+    let top = Scanner.entries(fd: rootFD, path: rootPath)
     itemCount.withLock { $0 += top.count }
     await withTaskGroup(of: Node.self) { group in
         for e in top {
@@ -121,15 +122,21 @@ func disklyScan(_ root: URL) async -> Node {
             if e.isDir && !e.isLink, gate.tryAcquire() {
                 group.addTask {
                     defer { gate.release() }
+                    let start = Date()
                     await disklyBuild(parentFD: rootFD, name: e.name,
-                                      path: rootPath + "/" + e.name,
+                                      path: childPath(e.name),
                                       child, gate, registry)
+                    Scanner.reportSlow("top-level folder", path: childPath(e.name),
+                                       since: start)
                     return child
                 }
             } else if e.isDir && !e.isLink {
+                let start = Date()
                 await disklyBuild(parentFD: rootFD, name: e.name,
-                                  path: rootPath + "/" + e.name,
+                                  path: childPath(e.name),
                                   child, gate, registry)
+                Scanner.reportSlow("top-level folder", path: childPath(e.name),
+                                   since: start)
                 n.children.append(child)
             } else {
                 child.size = e.size
@@ -204,10 +211,22 @@ struct Bench {
         // --quick: Diskly scan only (best of 3), no external tools. For
         // iterating on scanner performance without paying for du/find/ncdu.
         let quick = args.contains("--quick")
-        args.removeAll { $0 == "--quick" }
+        let once = args.contains("--once")
+        args.removeAll { $0 == "--quick" || $0 == "--once" }
         let arg = args.first ?? NSHomeDirectory() + "/Library"
         let path = (arg as NSString).standardizingPath
         let url = URL(fileURLWithPath: path)
+
+        if once {
+            let t = Date()
+            let root = await disklyScan(url)
+            let dt = Date().timeIntervalSince(t)
+            let items = itemCount.withLock { $0 }
+            print("one scan  path: \(path)  cores: \(CORES)")
+            print("items: \(items)  bytes: \(fmtBytes(root.size))")
+            print("time: \(fmtTime(dt))  (\(fmtMBps(Double(root.size) / dt / 1_000_000)) MB/s)")
+            return
+        }
 
         if quick {
             _ = await disklyScan(url)   // warm page cache

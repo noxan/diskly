@@ -174,15 +174,16 @@ extension Scanner {
     static func scanStreaming(_ root: URL, parent: FileNode, progress: ScanProgress,
                               onChild: @escaping @Sendable (FileNode) -> Void) async {
         let gate = ScanGate(limit: ProcessInfo.processInfo.activeProcessorCount)
-        let registry = DirRegistry()        // kills firmlink / bind-mount double counts
         let rootPath = root.path
+        let registry = DirRegistry(rootPath: rootPath) // kills mount / firmlink double counts
+        let childPath: (String) -> String = { rootPath == "/" ? "/" + $0 : rootPath + "/" + $0 }
         let rootFD = openDir(rootPath)
         guard rootFD >= 0 else { return }
         defer { close(rootFD) }             // group is awaited below, so fd outlives all openats
         // Register the root too. Without this, a mount/bind that leads back to
         // it can make the scanner walk the entire root a second time.
         guard registry.shouldWalk(path: rootPath, fd: rootFD) else { return }
-        let contents = entries(fd: rootFD)
+        let contents = entries(fd: rootFD, path: rootPath)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
         await withTaskGroup(of: Void.self) { group in
             for e in contents {
@@ -196,17 +197,23 @@ extension Scanner {
                     // here as at every lower level.
                     group.addTask {
                         defer { gate.release() }
+                        let start = Date()
                         await build(child, parentFD: rootFD, name: e.name,
-                                    path: rootPath + "/" + e.name,
+                                    path: childPath(e.name),
                                     gate: gate, progress: progress, registry: registry)
+                        reportSlow("top-level folder", path: childPath(e.name),
+                                   since: start)
                         if !Task.isCancelled { onChild(child) }
                     }
                 } else if e.isDir && !e.isLink {
                     // Keep making progress without adding an unbounded number
                     // of queued tasks when all worker slots are occupied.
+                    let start = Date()
                     await build(child, parentFD: rootFD, name: e.name,
-                                path: rootPath + "/" + e.name,
+                                path: childPath(e.name),
                                 gate: gate, progress: progress, registry: registry)
+                    reportSlow("top-level folder", path: childPath(e.name),
+                               since: start)
                     if !Task.isCancelled { onChild(child) }
                 } else {
                     child.size = e.size
@@ -227,7 +234,7 @@ extension Scanner {
                               gate: ScanGate, progress: ScanProgress,
                               registry: DirRegistry) async {
         if Task.isCancelled { return }       // bail fast when the scan is cancelled
-        let fd = openDir(at: parentFD, name)
+        let fd = openDir(at: parentFD, name, path: path)
         guard fd >= 0 else { return }
         defer { close(fd) }
         // Skip a physical directory we've already walked. Firmlinks expose the
@@ -237,7 +244,7 @@ extension Scanner {
         // so its size stays 0. `path` is threaded down as a plain string —
         // deriving it from node.url would rebuild the URL chain per directory.
         guard registry.shouldWalk(path: path, fd: fd) else { return }
-        let contents = entries(fd: fd)
+        let contents = entries(fd: fd, path: path)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
 
         var kids: [FileNode] = []
