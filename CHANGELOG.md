@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0 — 2026-08-07
+
+### Added
+- display lifetime reclaimed space history with per-origin breakdown and 30/90/365-day charts
+
+
 ## v0.7.2 — 2026-08-06
 
 ### Added
