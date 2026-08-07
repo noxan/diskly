@@ -677,6 +677,7 @@ struct DiskVolume: Identifiable {
     static var all: [DiskVolume] {
         let keys: Set<URLResourceKey> = [
             .volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
+            .volumeAvailableCapacityForImportantUsageKey,
             .volumeIsBrowsableKey, .volumeIsLocalKey,
         ]
         let urls = FileManager.default.mountedVolumeURLs(
@@ -686,9 +687,10 @@ struct DiskVolume: Identifiable {
             guard let v = try? url.resourceValues(forKeys: keys),
                   v.volumeIsBrowsable == true, v.volumeIsLocal == true,
                   let total = v.volumeTotalCapacity, total > 0 else { return nil }
-            let avail = v.volumeAvailableCapacity ?? 0
+            let avail = v.volumeAvailableCapacityForImportantUsage
+                ?? Int64(v.volumeAvailableCapacity ?? 0)
             return DiskVolume(url: url, name: v.volumeName ?? url.lastPathComponent,
-                              total: Int64(total), used: Int64(total - avail))
+                              total: Int64(total), used: Int64(total) - avail)
         }
     }
 }
