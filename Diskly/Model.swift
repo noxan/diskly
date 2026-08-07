@@ -179,21 +179,37 @@ extension Scanner {
         let rootFD = openDir(rootPath)
         guard rootFD >= 0 else { return }
         defer { close(rootFD) }             // group is awaited below, so fd outlives all openats
+        // Register the root too. Without this, a mount/bind that leads back to
+        // it can make the scanner walk the entire root a second time.
+        guard registry.shouldWalk(path: rootPath, fd: rootFD) else { return }
         let contents = entries(fd: rootFD)
         progress.add(contents.count, bytes: contents.reduce(Int64(0)) { $0 + $1.size })
         await withTaskGroup(of: Void.self) { group in
             for e in contents {
-                group.addTask {
-                    if Task.isCancelled { return }
-                    let child = FileNode(name: e.name, isDirectory: e.isDir, parent: parent)
-                    if e.isDir && !e.isLink {
+                if Task.isCancelled { break }
+                let child = FileNode(name: e.name, isDirectory: e.isDir, parent: parent)
+                if e.isDir && !e.isLink, gate.tryAcquire() {
+                    // The root used to spawn one task for every entry before
+                    // applying the gate. A folder with thousands of immediate
+                    // subdirectories could flood the cooperative executor and
+                    // look permanently stuck. Apply the same bounded fan-out
+                    // here as at every lower level.
+                    group.addTask {
+                        defer { gate.release() }
                         await build(child, parentFD: rootFD, name: e.name,
                                     path: rootPath + "/" + e.name,
                                     gate: gate, progress: progress, registry: registry)
-                    } else {
-                        child.size = e.size
+                        if !Task.isCancelled { onChild(child) }
                     }
-                    if Task.isCancelled { return }
+                } else if e.isDir && !e.isLink {
+                    // Keep making progress without adding an unbounded number
+                    // of queued tasks when all worker slots are occupied.
+                    await build(child, parentFD: rootFD, name: e.name,
+                                path: rootPath + "/" + e.name,
+                                gate: gate, progress: progress, registry: registry)
+                    if !Task.isCancelled { onChild(child) }
+                } else {
+                    child.size = e.size
                     onChild(child)
                 }
             }
@@ -254,9 +270,9 @@ extension Scanner {
                     let childPath = path + "/" + e.name
                     if gate.tryAcquire() {
                         group.addTask {
+                            defer { gate.release() }
                             await build(child, parentFD: fd, name: e.name, path: childPath,
                                         gate: gate, progress: progress, registry: registry)
-                            gate.release()
                             return child
                         }
                     } else {
@@ -361,6 +377,7 @@ final class AppModel {
 
     /// Return to the welcome screen, discarding the current scan. Recents persist.
     func goHome() {
+        scanGeneration += 1
         scanTask?.cancel()
         accessedURL?.stopAccessingSecurityScopedResource()
         accessedURL = nil
@@ -377,8 +394,14 @@ final class AppModel {
     private var accessedURL: URL?
 
     private var scanTask: Task<Void, Never>?
+    /// Identifies the scan currently allowed to publish state. A cancelled task
+    /// can finish after its replacement has started, so cancellation alone is
+    /// not enough to keep its completion handler from ending the new scan.
+    private var scanGeneration = 0
 
     private func scan(_ url: URL) {
+        scanGeneration += 1
+        let generation = scanGeneration
         scanTask?.cancel()
         accessedURL?.stopAccessingSecurityScopedResource()
         // Prefer an existing grant (self or ancestor); else this is a fresh
@@ -406,6 +429,7 @@ final class AppModel {
             }
             if Task.isCancelled { return }
             await MainActor.run {
+                guard self.scanGeneration == generation else { return }
                 self.attach(buffer.drain(), to: tree)   // final flush
                 self.isScanning = false
                 self.version += 1
@@ -414,7 +438,7 @@ final class AppModel {
         // Drain finished subtrees into the live tree (and poll the counter)
         // on the main actor, coalescing redraws to ~10fps.
         Task { @MainActor in
-            while isScanning {
+            while isScanning && scanGeneration == generation {
                 scannedCount = progress.count
                 scannedBytes = progress.bytes
                 attach(buffer.drain(), to: tree)
@@ -435,6 +459,7 @@ final class AppModel {
 
     /// Cancel an in-flight scan, keeping whatever was on screen before it.
     func cancelScan() {
+        scanGeneration += 1
         scanTask?.cancel()
         isScanning = false
         // Re-grant access to the still-displayed root (the cancelled scan may

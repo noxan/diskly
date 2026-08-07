@@ -85,9 +85,9 @@ func disklyBuild(parentFD: Int32, name: String, path: String, _ node: Node,
                 let childPath = path + "/" + e.name
                 if gate.tryAcquire() {
                     group.addTask {
+                        defer { gate.release() }
                         await disklyBuild(parentFD: fd, name: e.name,
                                           path: childPath, child, gate, registry)
-                        gate.release()
                         return child
                     }
                 } else {
@@ -110,23 +110,30 @@ func disklyScan(_ root: URL) async -> Node {
     let rootFD = Scanner.openDir(rootPath)
     guard rootFD >= 0 else { return n }
     defer { close(rootFD) }
-    let top = Scanner.entries(fd: rootFD)
-    itemCount.withLock { $0 += top.count }
     let gate = ScanGate(limit: CORES)
     let registry = DirRegistry()
+    guard registry.shouldWalk(path: rootPath, fd: rootFD) else { return n }
+    let top = Scanner.entries(fd: rootFD)
+    itemCount.withLock { $0 += top.count }
     await withTaskGroup(of: Node.self) { group in
         for e in top {
             let child = Node()
-            if e.isDir && !e.isLink {
+            if e.isDir && !e.isLink, gate.tryAcquire() {
                 group.addTask {
+                    defer { gate.release() }
                     await disklyBuild(parentFD: rootFD, name: e.name,
                                       path: rootPath + "/" + e.name,
                                       child, gate, registry)
                     return child
                 }
+            } else if e.isDir && !e.isLink {
+                await disklyBuild(parentFD: rootFD, name: e.name,
+                                  path: rootPath + "/" + e.name,
+                                  child, gate, registry)
+                n.children.append(child)
             } else {
                 child.size = e.size
-                group.addTask { return child }
+                n.children.append(child)
             }
         }
         for await n0 in group { n.children.append(n0) }
