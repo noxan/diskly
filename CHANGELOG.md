@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.9.0 — 2026-09-01
+
+### Added
+- Per-folder rescan: right-click a folder to rescan just that subtree
+- Ejected disks automatically removed from the welcome screen
+
+### Changed
+- Optimized disk scanning performance, especially for Nix packages
+
+### Fixed
+- Scanner task stalls and slow full-disk scans
+- Volume usage accounting to match macOS behavior
+
+
 ## v0.8.0 — 2026-08-07
 
 ### Added
