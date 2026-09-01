@@ -81,6 +81,9 @@ struct ContentView: View {
 private struct Welcome: View {
     @Bindable var model: AppModel
     @State private var dropping = false
+    // Recomputed on mount/unmount — `DiskVolume.all` is a plain filesystem
+    // read, so nothing would redraw the list when a disk is ejected.
+    @State private var disks = DiskVolume.all
 
     // 4 quick-location buttons + 3 gaps — recents box matches this width.
     private let columnWidth: CGFloat = 4 * 80 + 3 * 10
@@ -105,6 +108,17 @@ private struct Welcome: View {
             model.scan(dropped: url)
             return true
         } isTargeted: { dropping = $0 }
+        .onReceive(NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didMountNotification)) { _ in
+            disks = DiskVolume.all
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didUnmountNotification)) { note in
+            disks = DiskVolume.all
+            if let url = note.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
+                model.forgetRecents(under: url)
+            }
+        }
     }
 
     private var content: some View {
@@ -122,7 +136,7 @@ private struct Welcome: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
-            ForEach(DiskVolume.all) { disk in
+            ForEach(disks) { disk in
                 Button { model.openQuick(disk.url) } label: {
                     DiskRow(disk: disk)
                 }
@@ -146,7 +160,7 @@ private struct Welcome: View {
             .frame(width: columnWidth)
 
             // Hide recents that are already one click away as a disk or quick item.
-            let pinned = Set((DiskVolume.all.map(\.url) + QuickLocation.all.map(\.url))
+            let pinned = Set((disks.map(\.url) + QuickLocation.all.map(\.url))
                 .map { $0.standardizedFileURL.path })
             let recents = model.recents.filter { !pinned.contains($0.url.standardizedFileURL.path) }
 

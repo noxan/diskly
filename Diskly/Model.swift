@@ -522,6 +522,19 @@ final class AppModel {
         saveRecents()
     }
 
+    /// Drop recents living on `volume`, so ejecting a disk clears its folders
+    /// from the welcome screen. Their bookmarks are dead until it remounts.
+    func forgetRecents(under volume: URL) {
+        let root = volume.standardizedFileURL.path
+        guard root != "/" else { return }        // boot volume can't be ejected
+        let before = recents.count
+        recents.removeAll {
+            let p = $0.url.standardizedFileURL.path
+            return p == root || p.hasPrefix(root + "/")
+        }
+        if recents.count != before { saveRecents() }
+    }
+
     func scanRecent(_ r: RecentFolder) {
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: r.bookmark,
