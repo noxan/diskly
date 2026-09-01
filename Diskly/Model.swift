@@ -307,6 +307,7 @@ final class AppModel {
     var isScanning = false
     var scannedCount = 0               // live item count during a scan
     var scannedBytes: Int64 = 0        // live bytes seen during a scan
+    var scanningNode: FileNode?
     var version = 0                    // bumped on tree mutation to force redraw
     var previewing = false             // Quick Look panel open (tracks `selected`)
 
@@ -382,6 +383,50 @@ final class AppModel {
         scan(url)
     }
 
+    /// Rescan one directory atomically, keeping the old subtree visible until
+    /// its replacement is complete.
+    func rescan(_ node: FileNode) {
+        guard node.isDirectory, !isScanning else { return }
+        scanGeneration += 1
+        let generation = scanGeneration
+        isScanning = true
+        scanningNode = node
+        scannedCount = 0
+        scannedBytes = 0
+        selected = nil
+        hovered = nil
+        marked.removeAll()
+        let progress = ScanProgress()
+        let buffer = NodeBuffer()
+        scanTask = Task.detached(priority: .userInitiated) {
+            await Scanner.scanStreaming(node.url, parent: node, progress: progress) {
+                buffer.append($0)
+            }
+            if Task.isCancelled { return }
+            await MainActor.run {
+                guard self.scanGeneration == generation else { return }
+                node.children = buffer.drain()
+                node.size = node.children.reduce(0) { $0 + $1.size }
+                var current: FileNode? = node
+                while let item = current {
+                    if item !== node { item.size = item.children.reduce(0) { $0 + $1.size } }
+                    item.invalidate()
+                    current = item.parent
+                }
+                self.isScanning = false
+                self.scanningNode = nil
+                self.version += 1
+            }
+        }
+        Task { @MainActor in
+            while isScanning && scanGeneration == generation {
+                scannedCount = progress.count
+                scannedBytes = progress.bytes
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
     /// Return to the welcome screen, discarding the current scan. Recents persist.
     func goHome() {
         scanGeneration += 1
@@ -394,6 +439,7 @@ final class AppModel {
         hovered = nil
         marked.removeAll()
         isScanning = false
+        scanningNode = nil
     }
 
     /// Root we hold a security-scoped access grant on (from the open panel), so
@@ -426,6 +472,7 @@ final class AppModel {
         let tree = FileNode(name: displayName(for: url),
                             isDirectory: true, parent: nil, fixedURL: url)
         root = tree
+        scanningNode = tree
         path = []
         version += 1
         let progress = ScanProgress()
@@ -439,6 +486,7 @@ final class AppModel {
                 guard self.scanGeneration == generation else { return }
                 self.attach(buffer.drain(), to: tree)   // final flush
                 self.isScanning = false
+                self.scanningNode = nil
                 self.version += 1
             }
         }
@@ -469,6 +517,7 @@ final class AppModel {
         scanGeneration += 1
         scanTask?.cancel()
         isScanning = false
+        scanningNode = nil
         // Re-grant access to the still-displayed root (the cancelled scan may
         // have swapped the security scope to a different folder).
         accessedURL?.stopAccessingSecurityScopedResource()
