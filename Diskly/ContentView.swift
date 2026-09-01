@@ -275,7 +275,7 @@ private struct PathBar: View {
             }
             Spacer(minLength: 8)
             if let current = model.current {
-                let displaySize = model.isScanning ? model.scannedBytes : current.size
+                let displaySize = model.scanningNode === current ? model.scannedBytes : current.size
                 Text(displaySize.byteString)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -369,6 +369,10 @@ func nodeContextMenu(_ model: AppModel, _ node: FileNode) -> some View {
         Button("Preview") { model.startPreview(node) }
             .keyboardShortcut(" ", modifiers: [])
         Button("Reveal in Finder") { model.reveal(node) }
+        if node.isDirectory {
+            Button("Rescan Folder") { model.rescan(node) }
+                .disabled(model.isScanning)
+        }
         Divider()
         Button(model.isMarked(node) ? "Unmark" : "Mark for Deletion") {
             model.toggleMark(node)
