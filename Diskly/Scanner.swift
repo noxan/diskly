@@ -35,7 +35,7 @@ nonisolated final class ScanGate: @unchecked Sendable {
 /// expose the same physical directory via multiple paths; this lets the scanner
 /// recognize "already walked" regardless of which path led there.
 nonisolated private struct InodeKey: Hashable, Sendable {
-    let dev: UInt64; let ino: UInt64
+    let dev: dev_t; let ino: ino_t
 }
 
 /// Guards against walking the same physical directory twice. macOS Catalina+
@@ -82,7 +82,7 @@ nonisolated final class DirRegistry: @unchecked Sendable {
         }
         var st = stat()
         guard fstat(fd, &st) == 0 else { return true } // unreadable → just walk it
-        let key = InodeKey(dev: UInt64(st.st_dev), ino: UInt64(st.st_ino))
+        let key = InodeKey(dev: st.st_dev, ino: st.st_ino)
         lock.lock(); defer { lock.unlock() }
         return seen.insert(key).inserted
     }
