@@ -326,8 +326,10 @@ final class AppModel {
         panel.message = "Choose a folder to analyze"
         // Point at the parent so the target folder is selectable in one click.
         if let start { panel.directoryURL = start.deletingLastPathComponent() }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        scan(url)
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.scan(url)
+        }
     }
 
     /// Scan a quick location. If any prior grant covers it — the folder itself
