@@ -159,6 +159,28 @@ struct TreemapView<Menu: View>: View {
                 }
             }
             .contentShape(Rectangle())
+            .accessibilityRepresentation {
+                ForEach(tiles, id: \.node.id) { tile in
+                    if tile.node.isAggregate {
+                        Button("Other, \(tile.node.aggregatedCount) items") {
+                            selected = tile.node
+                        }
+                        .accessibilityValue(tile.node.size.byteString)
+                        .accessibilityAction(named: "Open") { onDrill(tile.node) }
+                    } else {
+                        Button(tile.node.name) { selected = tile.node }
+                            .accessibilityValue(tile.node.size.byteString)
+                            .accessibilityAction(named: tile.node.isDirectory ? "Open" : "Preview") {
+                                selected = tile.node
+                                if tile.node.isDirectory { onDrill(tile.node) }
+                                else { onPreview() }
+                            }
+                            .accessibilityAction(named: "Mark for Deletion") {
+                                onToggleMark(tile.node)
+                            }
+                    }
+                }
+            }
             // Right-click acts on the tile under the cursor (tracked via hover).
             .contextMenu {
                 if let target = hovered { menu(target) }

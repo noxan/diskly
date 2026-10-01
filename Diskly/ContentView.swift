@@ -48,7 +48,7 @@ struct ContentView: View {
             Toolbar(model: model, showingCleanup: $showingCleanup,
                     showingStats: $showingStats)
         }
-        .navigationTitle("Diskly")
+        .navigationTitle(model.current?.name ?? "Disk Usage")
         .sheet(isPresented: $showingStats) {
             VStack(spacing: 0) {
                 ReclaimedStats()
@@ -449,30 +449,6 @@ private struct Row: View {
     }
 }
 
-// MARK: - Scan spinner
-
-/// A compact spinning-arc indicator tuned to sit inside a glass pill.
-private struct ScanSpinner: View {
-    @State private var rotation = 0.0
-
-    var body: some View {
-        Circle()
-            .trim(from: 0, to: 0.28)
-            .stroke(
-                AngularGradient(colors: [.accentColor, .accentColor.opacity(0)],
-                               center: .center),
-                style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
-            )
-            .frame(width: 16, height: 16)
-            .rotationEffect(.degrees(rotation))
-            .onAppear {
-                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
-                    rotation = 360
-                }
-            }
-    }
-}
-
 // MARK: - Detail (path bar + treemap + bottom bars)
 
 private struct Detail: View {
@@ -498,7 +474,8 @@ private struct Detail: View {
             // Non-blocking pill so results stream in visibly behind it.
             if model.isScanning {
                 HStack(spacing: 12) {
-                    ScanSpinner()
+                    ProgressView()
+                        .controlSize(.small)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Scanning…")
                             .font(.callout.weight(.medium))
