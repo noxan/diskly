@@ -227,10 +227,15 @@ struct CleanupView: View {
     }
 
     private func undo(_ cleanup: UndoCleanup) {
+        guard let access = model.beginGrantedAccess(for: QuickLocation.realHome) ?? requestHomeAccess()
+        else { return }
         isCleaning = true
         Task {
             do {
-                try await Task.detached { try restore(cleanup) }.value
+                try await Task.detached {
+                    defer { access.stopAccessingSecurityScopedResource() }
+                    try restore(cleanup)
+                }.value
                 undoCleanup = nil
                 await refreshSizes()
             } catch {
