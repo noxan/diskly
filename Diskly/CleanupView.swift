@@ -29,7 +29,6 @@ struct CleanupPreview: View {
 
 struct CleanupView: View {
     let model: AppModel
-    @State private var pending: CleanupTarget?
     @State private var isCleaning = false
     @State private var isScanning = false
     @State private var needsRescan = false
@@ -39,6 +38,7 @@ struct CleanupView: View {
     @State private var mode: CleanupMode = .safe
     @State private var sizes: [String: Int64] = [:]
     @State private var error: String?
+    @State private var undoCleanup: UndoCleanup?
 
     var body: some View {
         let targets = CleanupTarget.all.filter { $0.mode == mode }
@@ -113,17 +113,16 @@ struct CleanupView: View {
         .padding(24)
         .frame(maxWidth: 700, maxHeight: .infinity)
         .task { await refreshSizes() }
-        .confirmationDialog("\(mode == .prune ? "Prune" : "Clean") \(pending?.name ?? "cache")?", isPresented: Binding(
-            get: { pending != nil }, set: { if !$0 { pending = nil } }
-        )) {
-            if let target = pending {
-                Button("Clean", role: .destructive) {
-                    pending = nil
-                    clean(target)
+        .safeAreaInset(edge: .bottom) {
+            if let undoCleanup {
+                HStack {
+                    Text("\(undoCleanup.name) cleaned")
+                    Spacer()
+                    Button("Undo") { undo(undoCleanup) }.disabled(isCleaning)
                 }
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
             }
-        } message: {
-            Text(pending?.message ?? "")
         }
         .confirmationDialog(mode == .prune ? "Danger: prune everything listed?" : "Clean all safe caches?",
                             isPresented: $confirmAll) {
@@ -153,7 +152,7 @@ struct CleanupView: View {
                 ProgressView().controlSize(.small)
             }
             if !cleaned {
-                Button(isCleaning ? "Cleaning…" : "Clean…") { pending = target }
+                Button(isCleaning ? "Cleaning…" : "Clean") { clean(target) }
                     .disabled(isCleaning)
             }
         }
@@ -171,17 +170,23 @@ struct CleanupView: View {
         // what each target actually frees.
         let estimates = targets.reduce(into: [String: Int64]()) { $0[$1.id] = sizes[$1.id] ?? 0 }
         isCleaning = true
+        undoCleanup = nil
         Task {
             let result = await Task.detached(priority: .userInitiated) {
                 defer { access.stopAccessingSecurityScopedResource() }
                 var failures: [String] = []
                 var freed: [String: Int64] = [:]
+                var undo: UndoCleanup?
                 for target in targets {
                     do {
                         switch target.action {
                     case .trashContents(let urls):
-                        try trashContents(urls, named: target.name,
-                                          home: URL(filePath: homePath))
+                        if let trashedURL = try trashContents(urls, named: target.name,
+                                                              home: URL(filePath: homePath)),
+                           targets.count == 1 {
+                            undo = UndoCleanup(name: target.name, originalURLs: urls,
+                                               trashedURL: trashedURL)
+                        }
                         freed[target.name] = estimates[target.name]
                     case .command(let executable, let arguments):
                         let process = Process()
@@ -208,15 +213,30 @@ struct CleanupView: View {
                         failures.append("\(target.name): \(error.localizedDescription)")
                     }
                 }
-                return (failures.isEmpty ? nil : failures.joined(separator: "\n"), freed)
+                return (failures.isEmpty ? nil : failures.joined(separator: "\n"), freed, undo)
             }.value
             isCleaning = false
+            undoCleanup = result.2
             for (name, bytes) in result.1.sorted(by: { $0.key < $1.key }) {
                 ReclaimedLog.shared.record(bytes, origin: .cleanup, source: name)
             }
             if let failure = result.0 { error = "Couldn't clean every cache:\n\(failure)" }
             if isScanning { needsRescan = true }
             else { await refreshSizes() }
+        }
+    }
+
+    private func undo(_ cleanup: UndoCleanup) {
+        isCleaning = true
+        Task {
+            do {
+                try await Task.detached { try restore(cleanup) }.value
+                undoCleanup = nil
+                await refreshSizes()
+            } catch {
+                self.error = "Couldn't undo cleanup:\n\(error.localizedDescription)"
+            }
+            isCleaning = false
         }
     }
 
@@ -263,8 +283,14 @@ struct CleanupView: View {
     }
 }
 
+private struct UndoCleanup: Sendable {
+    let name: String
+    let originalURLs: [URL]
+    let trashedURL: URL
+}
+
 nonisolated private func trashContents(_ urls: [URL], named name: String,
-                                       home: URL) throws {
+                                       home: URL) throws -> URL? {
     let files = FileManager.default
     let staging = home.appending(path: "Library/Caches/Diskly \(name) Cache \(UUID().uuidString.prefix(8))")
     var staged = false
@@ -281,8 +307,28 @@ nonisolated private func trashContents(_ urls: [URL], named name: String,
         if staged { try? files.trashItem(at: staging, resultingItemURL: nil) }
         throw error
     }
-    if staged { try files.trashItem(at: staging, resultingItemURL: nil) }
-    else { try? files.removeItem(at: staging) }
+    if staged {
+        var trashedURL: NSURL?
+        try files.trashItem(at: staging, resultingItemURL: &trashedURL)
+        return trashedURL as URL?
+    }
+    try? files.removeItem(at: staging)
+    return nil
+}
+
+nonisolated private func restore(_ cleanup: UndoCleanup) throws {
+    let files = FileManager.default
+    for original in cleanup.originalURLs {
+        let source = cleanup.originalURLs.count == 1
+            ? cleanup.trashedURL
+            : cleanup.trashedURL.appending(path: original.lastPathComponent)
+        guard files.fileExists(atPath: source.path) else { continue }
+        try files.createDirectory(at: original, withIntermediateDirectories: true)
+        for item in try files.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) {
+            try files.moveItem(at: item, to: original.appending(path: item.lastPathComponent))
+        }
+    }
+    try? files.removeItem(at: cleanup.trashedURL)
 }
 
 private struct CleanupTarget: Identifiable, Sendable {
