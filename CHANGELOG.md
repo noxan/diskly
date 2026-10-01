@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.1 — 2026-10-01
+
+### Fixed
+- fixed full disk scan crash on negative device IDs
+
+
 ## v0.9.0 — 2026-09-01
 
 ### Added
