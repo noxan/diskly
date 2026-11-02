@@ -1,37 +1,70 @@
 {
-  "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.96,0.97,0.99,1.00000"
   },
-  "groups" : [
+  "groups": [
     {
-      "blur-material" : null,
-      "layers" : [
-        {
-          "image-name" : "Image.png",
-          "name" : "Image",
-          "position" : {
-            "scale" : 0.9,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
-        }
-      ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
+      "blur-material": null,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
       },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.25
-      }
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      },
+      "name": "Storage ring",
+      "layers": [
+        {
+          "image-name": "Sector-1.svg",
+          "name": "Storage 1"
+        },
+        {
+          "image-name": "Sector-2.svg",
+          "name": "Storage 2"
+        },
+        {
+          "image-name": "Sector-3.svg",
+          "name": "Storage 3"
+        },
+        {
+          "image-name": "Sector-4.svg",
+          "name": "Storage 4"
+        },
+        {
+          "image-name": "Sector-5.svg",
+          "name": "Storage 5"
+        },
+        {
+          "image-name": "Sector-6.svg",
+          "name": "Storage 6"
+        },
+        {
+          "image-name": "Sector-7.svg",
+          "name": "Storage 7"
+        }
+      ]
+    },
+    {
+      "blur-material": null,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      },
+      "name": "Disk hub",
+      "layers": [
+        {
+          "image-name": "Hub.svg",
+          "name": "Hub"
+        }
+      ]
     }
   ],
-  "supported-platforms" : {
-    "circles" : [
-      "watchOS"
-    ],
-    "squares" : "shared"
+  "supported-platforms": {
+    "squares": "shared"
   }
 }
