@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.10.0 — 2026-11-02
+
+### Added
+- undo for cleanups, replacing the confirmation prompt shown before each clean
+
+### Changed
+- folder picker opens asynchronously so the app stays responsive while it loads
+- improved accessibility to better follow macOS Human Interface Guidelines
+
+### Fixed
+- undo for cleanups now restores file permissions correctly
+
+
 ## v0.9.1 — 2026-10-01
 
 ### Fixed
