@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.11.0 — 2026-11-02
+
+### Changed
+- replaced the app icon with a layered Liquid Glass design
+
+
 ## v0.10.0 — 2026-11-02
 
 ### Added
